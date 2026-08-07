@@ -1,6 +1,7 @@
 node_modules/
 .env
 .credentials.json
+.oauth-pending.json
 reports/*.md
 !reports/.gitkeep
 config/margins.json
