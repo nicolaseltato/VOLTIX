@@ -38,40 +38,72 @@ npm run authorize
 
 El script te va a mostrar una URL. Abrila en el navegador, logueado como administrador de la cuenta de Voltix, autorizá la app, y copiá el `code` (y el `state`) que aparecen en la URL a la que te redirige. El script guarda el `access_token`/`refresh_token` en `.credentials.json` (también gitignored) y renueva el token automáticamente cuando genera cada informe.
 
-## 4. (Recomendado) Cargar tu margen real
-
-Mercado Libre reporta ACOS/ROAS sobre **ingresos**, no sobre ganancia. Para que el informe te diga qué campañas son rentables *de verdad* (no solo "cumplen el objetivo que configuraste en Mercado Ads"), cargá tu margen de contribución:
-
-```bash
-cp config/margins.example.json config/margins.json
-```
-
-Editá `default_margin_pct` con tu margen bruto promedio (%, antes de publicidad). Si querés precisión por campaña puntual, agregá su `id` en `by_campaign`. Con esto el agente calcula el **ACOS de equilibrio** y compara cada campaña contra tu rentabilidad real, no contra un proxy.
-
-Si no cargás este archivo, el informe usa el ROAS objetivo de cada campaña como referencia y lo aclara en el encabezado.
-
-## 5. Generar el informe
+## 4. Generar el primer informe
 
 ```bash
 npm run report
 ```
 
-Por defecto analiza los últimos 30 días. Opciones:
+La primera vez que lo corrés **no vas a ver la ganancia real todavía** — el agente no inventa el costo de tus productos. Lo que hace es:
+
+1. Traer tus campañas y productos publicitados reales de Mercado Ads.
+2. Calcular automáticamente ACOS, ROAS, inversión y ventas por publicidad (esto no requiere nada tuyo).
+3. Calcular automáticamente la **comisión real de Mercado Libre** por cada producto, usando el mismo calculador oficial que usa ML (no hace falta que la sepas de memoria).
+4. Generar `config/costos.csv` **precargado con tus productos reales** (item_id, título, precio) y las columnas `costo_producto` y `envio_extra` vacías, listas para completar.
+
+## 5. Completar los costos y volver a correr el informe
+
+Abrí `config/costos.csv` y completá, por cada producto:
+
+- **`costo_producto`** (obligatorio para ese producto): lo que te cuesta a vos producirlo o comprarlo (COGS), sin publicidad ni comisión.
+- **`envio_extra`** (opcional, default 0): solo si vos pagás una parte del envío de tu bolsillo (por ejemplo Mercado Envíos Flex o Colecta). Si el envío ya te lo descuenta Mercado Libre en la comisión, dejalo en 0.
+
+Podés completar solo los productos que te interesen — el informe muestra por separado los que sí tienen costo cargado (con ganancia real calculada) y los que todavía no.
 
 ```bash
-npm run report -- --days=7
+npm run report
+```
+
+`config/costos.csv` nunca se sube al repositorio (está en `.gitignore`): son datos sensibles de tu negocio.
+
+## 6. (Opcional) Margen rápido para el análisis táctico de campañas
+
+Además de la ganancia real por producto, el informe sugiere ajustes de presupuesto/puja por campaña. Por defecto usa el ROAS objetivo de cada campaña como referencia. Si preferís que use tu margen real en su lugar:
+
+```bash
+cp config/margins.example.json config/margins.json
+```
+
+Editá `default_margin_pct` con tu margen bruto promedio (%). Esto es un atajo rápido a nivel campaña — el análisis de `costos.csv` por producto es siempre más preciso.
+
+## Uso día a día
+
+```bash
+npm run report                                 # últimos 30 días
+npm run report -- --days=7                     # últimos 7 días
 npm run report -- --from=2026-07-01 --to=2026-07-31
 ```
 
-El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en consola. Incluye:
+El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en consola. Por ahora es 100% manual (lo corrés vos cuando lo necesitás); el código ya está separado en módulos (`src/`) para que el día de mañana se pueda disparar solo (por ejemplo semanal) sin tener que rehacer nada — todavía no está programado ese disparo automático.
 
-- **Resumen ejecutivo**: inversión, ventas atribuidas, ACOS/ROAS general de la cuenta, % de ventas que viene de publicidad.
-- **Próximos movimientos priorizados**: acciones concretas (escalar presupuesto, bajar objetivo, revisar creatividad, pausar, etc.) ordenadas por prioridad e impacto en $.
-- **Detalle por campaña**: tabla completa con las métricas clave.
+Incluye:
+
+- **Resumen ejecutivo**: inversión, ventas atribuidas, ACOS/ROAS general, ganancia real total.
+- **Ganancia real por producto**: tabla con costo de producto, comisión ML, envío extra y ganancia real, más una conclusión corta de qué potenciar y qué está perdiendo plata.
+- **Próximos movimientos de campaña**: ajustes tácticos de presupuesto/puja.
+- **Detalle por campaña**.
 
 ## Cómo razona el agente
 
-Por cada campaña activa combina las métricas del período (clicks, costo, ROAS, ACOS, CTR, CVR) con el % de subastas perdidas por presupuesto o por ad rank, y las clasifica:
+### A nivel producto (ganancia real)
+
+`ganancia real = venta por publicidad − (costo del producto × unidades) − (comisión ML × unidades) − (envío extra × unidades) − inversión en publicidad`
+
+Con eso clasifica cada producto en "conviene potenciar" (ganancia real positiva), "está perdiendo plata" (ganancia real negativa o cero) o "sin costo cargado" (no se puede calcular todavía).
+
+### A nivel campaña (táctico: presupuesto y puja)
+
+Por cada campaña activa combina ROAS/ACOS, CTR, CVR y el % de subastas perdidas por presupuesto o por ad rank:
 
 | Situación | Acción sugerida |
 |---|---|
@@ -86,15 +118,18 @@ Por cada campaña activa combina las métricas del período (clicks, costo, ROAS
 ## Estructura del proyecto
 
 ```
-bin/authorize.js        CLI para el flujo OAuth (una vez, o cuando expire el refresh_token cada 6 meses)
-bin/generate-report.js  CLI que descarga datos y genera el informe
-src/config.js           Carga de variables de entorno
-src/oauth.js            Flujo OAuth2 + PKCE contra Mercado Libre
-src/mercadoAdsClient.js Cliente de la API de Product Ads (advertisers, campañas, métricas)
-src/analyze.js          Motor de clasificación y priorización de acciones
-src/report.js           Generador del informe en Markdown
-config/margins.example.json  Plantilla de margen de contribución
-reports/                Informes generados (no se versionan)
+bin/authorize.js         CLI para el flujo OAuth (una vez, o cuando expire el refresh_token cada 6 meses)
+bin/generate-report.js   CLI que descarga datos, genera costos.csv si falta, y arma el informe
+src/config.js            Carga de variables de entorno
+src/oauth.js             Flujo OAuth2 + PKCE contra Mercado Libre
+src/mercadoAdsClient.js  Cliente de Product Ads (advertisers, campañas y productos + métricas)
+src/mlFees.js            Cálculo automático de la comisión real de ML por producto
+src/costs.js             Lectura/generación de config/costos.csv (costo de producto y envío extra)
+src/analyze.js           Clasificación táctica por campaña (presupuesto/puja)
+src/analyzeProfitability.js  Ganancia real por producto
+src/report.js            Generador del informe en Markdown
+config/margins.example.json  Plantilla de margen rápido (opcional, a nivel campaña)
+reports/                 Informes generados (no se versionan)
 ```
 
 ## Notas de seguridad

@@ -122,4 +122,33 @@ export class MercadoAdsClient {
       },
     });
   }
+
+  // Métricas a nivel producto (item_id), no solo por campaña. Es lo que necesitamos
+  // para calcular rentabilidad real por SKU (cada ítem trae su propio costo/venta).
+  async searchAds({ advertiserId, siteId, dateFrom, dateTo, limit = 50, offset = 0 }) {
+    return this.#request(`/advertising/${siteId}/advertisers/${advertiserId}/product_ads/ads/search`, {
+      searchParams: {
+        limit,
+        offset,
+        date_from: dateFrom,
+        date_to: dateTo,
+        metrics: CAMPAIGN_METRICS.join(","),
+      },
+    });
+  }
+
+  async getAllAds(params) {
+    const results = [];
+    let offset = 0;
+    const limit = 50;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const page = await this.searchAds({ ...params, limit, offset });
+      results.push(...(page.results || []));
+      const total = page.paging?.total ?? results.length;
+      offset += limit;
+      if (offset >= total) break;
+    }
+    return results;
+  }
 }

@@ -4,4 +4,5 @@ node_modules/
 reports/*.md
 !reports/.gitkeep
 config/margins.json
+config/costos.csv
 *.log
