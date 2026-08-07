@@ -1,0 +1,7 @@
+node_modules/
+.env
+.credentials.json
+reports/*.md
+!reports/.gitkeep
+config/margins.json
+*.log

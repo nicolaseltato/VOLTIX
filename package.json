@@ -1,0 +1,15 @@
+{
+  "name": "voltix-ads-agent",
+  "version": "1.0.0",
+  "description": "Agente experto en publicidad y rentabilidad para la cuenta de Mercado Libre de Voltix. Analiza campañas de Mercado Ads (Product Ads) y genera informes con próximos movimientos recomendados.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "authorize": "node bin/authorize.js",
+    "report": "node bin/generate-report.js"
+  },
+  "license": "UNLICENSED"
+}

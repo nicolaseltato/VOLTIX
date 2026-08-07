@@ -1,0 +1,10 @@
+{
+  "_comment": "Copiá este archivo a config/margins.json (está en .gitignore, no se sube al repo) y completá tu margen real. Esto permite calcular el ACOS de equilibrio: el % máximo de inversión publicitaria sobre ventas que todavía deja ganancia.",
+
+  "default_margin_pct": 30,
+
+  "_comment_by_campaign": "Opcional: sobreescribí el margen para campañas puntuales usando su id numérico (lo ves en la tabla del informe o en Mercado Ads).",
+  "by_campaign": {
+    "355189450": 22
+  }
+}
