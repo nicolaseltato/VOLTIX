@@ -25,6 +25,39 @@ function fmtX(n) {
   return `${n.toFixed(2)}x`;
 }
 
+function renderStockGapsSection(stockAnalysis, currency) {
+  const lines = [];
+  lines.push("## ⚠️ Productos pausados por falta de stock");
+  lines.push("");
+  lines.push(
+    "_Mercado Libre pausa automáticamente la publicidad de un ítem cuando se queda sin stock (status `hold`) — no es una decisión de la campaña. Estos productos ya demostraron que venden con publicidad en este período; ahora mismo no se les puede invertir un peso más porque no hay nada para vender._"
+  );
+  lines.push("");
+
+  if (stockAnalysis.proven.length === 0) {
+    lines.push(`No hay productos con ventas recientes bloqueados por stock (${stockAnalysis.totalCount} sin stock en total, pero sin actividad en el período).`);
+    return lines.join("\n");
+  }
+
+  lines.push(
+    `**${stockAnalysis.proven.length} de tus productos** con historial de venta por publicidad están sin stock ahora mismo — representan **${fmtMoney(stockAnalysis.totalRevenueAtRisk, currency)}** en ventas por publicidad que generaron en este período y que no se pueden repetir hasta reponer.`
+  );
+  lines.push("");
+  lines.push("**Priorizá reponer stock de (ordenado por venta generada):**");
+  lines.push("");
+  lines.push("| Producto | Venta por ads en el período | Unidades vendidas | Inversión en ads |");
+  lines.push("|---|---|---|---|");
+  for (const r of stockAnalysis.proven.slice(0, 15)) {
+    lines.push(`| ${r.title} | ${fmtMoney(r.adRevenue, currency)} | ${r.units} | ${fmtMoney(r.adSpend, currency)} |`);
+  }
+  if (stockAnalysis.proven.length > 15) {
+    lines.push("");
+    lines.push(`_...y ${stockAnalysis.proven.length - 15} productos más en la misma situación._`);
+  }
+
+  return lines.join("\n");
+}
+
 function renderProductProfitabilitySection(productAnalysis, currency) {
   const lines = [];
   lines.push("## Ganancia real por producto");
@@ -43,7 +76,9 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
 
   const { withCost, missingCost, toScale, losingMoney, totalRealProfit } = productAnalysis;
 
-  lines.push(`- Ganancia real total del período (solo productos con costo cargado): **${fmtMoney(totalRealProfit, currency)}**`);
+  if (withCost.length > 0) {
+    lines.push(`- Ganancia real total del período (solo productos con costo cargado): **${fmtMoney(totalRealProfit, currency)}**`);
+  }
   lines.push(`- Productos analizados con costo real: **${withCost.length}**`);
   if (missingCost.length > 0) {
     lines.push(`- Productos con publicidad activa pero **sin costo cargado** (no se pudieron analizar): **${missingCost.length}**`);
@@ -98,7 +133,7 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
   return lines.join("\n");
 }
 
-export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, currency }) {
+export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, currency }) {
   const { summary, campaignAnalyses, hasMarginData } = analysis;
   const lines = [];
 
@@ -116,8 +151,18 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
   lines.push(`- ROAS general de la cuenta: **${fmtX(summary.overallRoas)}**`);
   lines.push(`- % de ventas explicadas por publicidad (vs. orgánicas): **${fmtPct(summary.revenueShareFromAds)}**`);
   lines.push(`- Clicks: ${summary.clicks.toLocaleString("es-AR")} · Impresiones: ${summary.prints.toLocaleString("es-AR")} · Unidades vendidas: ${summary.unitsQuantity.toLocaleString("es-AR")}`);
-  if (productAnalysis) {
-    lines.push(`- Ganancia real (después de costo de producto, comisión ML y envío): **${fmtMoney(productAnalysis.totalRealProfit, currency)}**`);
+  if (productAnalysis && productAnalysis.withCost.length > 0) {
+    lines.push(`- Ganancia real (después de costo de producto, comisión ML y envío) sobre ${productAnalysis.withCost.length} productos con costo cargado: **${fmtMoney(productAnalysis.totalRealProfit, currency)}**`);
+  } else {
+    lines.push(`- Ganancia real: **sin calcular todavía** (falta cargar costos en \`config/costos.csv\`)`);
+  }
+  if (stockAnalysis && stockAnalysis.proven.length > 0) {
+    lines.push(`- ⚠️ Productos con historial de venta pero sin stock ahora mismo: **${stockAnalysis.proven.length}** (${fmtMoney(stockAnalysis.totalRevenueAtRisk, currency)} en ventas por publicidad en el período)`);
+  }
+
+  if (stockAnalysis) {
+    lines.push("");
+    lines.push(renderStockGapsSection(stockAnalysis, currency));
   }
 
   lines.push("");
