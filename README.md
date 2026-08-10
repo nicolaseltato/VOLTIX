@@ -11,6 +11,7 @@ No accede a nada por defecto: primero tenés que autorizar tu propia aplicación
 3. En **Permisos funcionales**, activá al menos:
    - **Publicidad** (lectura de Advertising / Product Ads).
    - **Métricas del negocio** (opcional, útil para contexto adicional).
+   - **Facturación** (opcional, pero recomendado): habilita la comisión real cobrada y las percepciones de IVA/Ingresos Brutos por período. Si lo activás después de haber autorizado la app una vez, tenés que volver a correr `npm run authorize` para que el token nuevo incluya el permiso.
 4. Configurá un **Redirect URI**. Como este proyecto corre el flujo manualmente (pegando el `code` a mano), podés usar cualquier URL fija que controles, por ejemplo `https://localhost/callback` — no hace falta que responda nada, solo hace falta copiar el `code` de la barra de direcciones después de autorizar.
 5. Guardá el **App ID** (`client_id`) y el **Client Secret**.
 
@@ -89,6 +90,8 @@ El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en co
 Incluye:
 
 - **Resumen ejecutivo**: inversión, ventas atribuidas, ACOS/ROAS general, ganancia real total.
+- **Comisiones y percepciones reales**: del último período de facturación cerrado — comisión de venta real, publicidad facturada, envíos, y percepciones de Ingresos Brutos desglosadas por jurisdicción (requiere el permiso "Facturación", ver paso 1).
+- **Productos pausados por falta de stock**: productos con historial de venta por publicidad que Mercado Libre puso en pausa automática por no tener stock, ordenados por venta generada — para priorizar reposición.
 - **Ganancia real por producto**: tabla con costo de producto, comisión ML, envío extra y ganancia real, más una conclusión corta de qué potenciar y qué está perdiendo plata.
 - **Próximos movimientos de campaña**: ajustes tácticos de presupuesto/puja.
 - **Detalle por campaña**.
@@ -123,10 +126,14 @@ bin/generate-report.js   CLI que descarga datos, genera costos.csv si falta, y a
 src/config.js            Carga de variables de entorno
 src/oauth.js             Flujo OAuth2 + PKCE contra Mercado Libre
 src/mercadoAdsClient.js  Cliente de Product Ads (advertisers, campañas y productos + métricas)
-src/mlFees.js            Cálculo automático de la comisión real de ML por producto
+src/mlFees.js            Cálculo automático de la comisión real de ML por producto (estimada, vía listing_prices)
+src/mlBilling.js         Cliente de Facturación (períodos, comisión/percepciones reales)
 src/costs.js             Lectura/generación de config/costos.csv (costo de producto y envío extra)
+src/aggregateAds.js      Agrupa anuncios por producto cuando corren en más de una campaña
 src/analyze.js           Clasificación táctica por campaña (presupuesto/puja)
 src/analyzeProfitability.js  Ganancia real por producto
+src/analyzeStock.js      Detección de productos pausados por falta de stock
+src/analyzeBilling.js    Comisión real, envíos y percepciones IIBB/IVA por período
 src/report.js            Generador del informe en Markdown
 config/margins.example.json  Plantilla de margen rápido (opcional, a nivel campaña)
 reports/                 Informes generados (no se versionan)

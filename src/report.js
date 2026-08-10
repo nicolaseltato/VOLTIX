@@ -25,6 +25,49 @@ function fmtX(n) {
   return `${n.toFixed(2)}x`;
 }
 
+function renderBillingSection(billingAnalysis, currency) {
+  const lines = [];
+  lines.push("## 💰 Comisiones y percepciones reales (Facturación)");
+  lines.push("");
+
+  if (!billingAnalysis) {
+    lines.push(
+      "> No pude traer este bloque: falta el permiso **Facturación** habilitado y re-autorizado en tu app de Mercado Libre, o todavía no hay ningún período de facturación cerrado."
+    );
+    return lines.join("\n");
+  }
+
+  const { period, totalAmount, salesCommission, adsCharge, shippingCharges, totalIibb, iibb, totalOtherPerceptions, totalBonuses } = billingAnalysis;
+  lines.push(
+    `_Del último período de facturación cerrado (${period.date_from} a ${period.date_to}) — son los cargos que Mercado Libre te cobró de verdad, no una estimación._`
+  );
+  lines.push("");
+  lines.push(`- Total facturado del período: **${fmtMoney(totalAmount, currency)}**`);
+  lines.push(`- Comisión de venta real: **${fmtMoney(salesCommission, currency)}**`);
+  lines.push(`- Publicidad (Product Ads) facturada: **${fmtMoney(adsCharge, currency)}**`);
+  lines.push(`- Cargos de envío: **${fmtMoney(shippingCharges, currency)}**`);
+  lines.push(`- Percepciones de Ingresos Brutos (IIBB): **${fmtMoney(totalIibb, currency)}**`);
+  if (totalOtherPerceptions > 0) {
+    lines.push(`- Otras percepciones (IVA, etc.): **${fmtMoney(totalOtherPerceptions, currency)}**`);
+  }
+  if (totalBonuses < 0) {
+    lines.push(`- Bonificaciones/reintegros: **${fmtMoney(totalBonuses, currency)}**`);
+  }
+
+  if (iibb.length > 0) {
+    lines.push("");
+    lines.push("### Ingresos Brutos por jurisdicción");
+    lines.push("");
+    lines.push("| Jurisdicción / concepto | Régimen | Alícuota | Monto retenido |");
+    lines.push("|---|---|---|---|");
+    for (const r of iibb) {
+      lines.push(`| ${r.concept} | ${r.regimen ?? "-"} | ${r.aliquot != null ? `${r.aliquot}%` : "-"} | ${fmtMoney(r.amount, currency)} |`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 function renderStockGapsSection(stockAnalysis, currency) {
   const lines = [];
   lines.push("## ⚠️ Productos pausados por falta de stock");
@@ -133,7 +176,7 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
   return lines.join("\n");
 }
 
-export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, currency }) {
+export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency }) {
   const { summary, campaignAnalyses, hasMarginData } = analysis;
   const lines = [];
 
@@ -159,6 +202,12 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
   if (stockAnalysis && stockAnalysis.proven.length > 0) {
     lines.push(`- ⚠️ Productos con historial de venta pero sin stock ahora mismo: **${stockAnalysis.proven.length}** (${fmtMoney(stockAnalysis.totalRevenueAtRisk, currency)} en ventas por publicidad en el período)`);
   }
+  if (billingAnalysis) {
+    lines.push(`- Percepciones de Ingresos Brutos del último período facturado: **${fmtMoney(billingAnalysis.totalIibb, currency)}**`);
+  }
+
+  lines.push("");
+  lines.push(renderBillingSection(billingAnalysis, currency));
 
   if (stockAnalysis) {
     lines.push("");

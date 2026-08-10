@@ -4,10 +4,12 @@ import path from "node:path";
 import { loadConfig, marginsPath, reportsDir } from "../src/config.js";
 import { MercadoAdsClient } from "../src/mercadoAdsClient.js";
 import { MlFeesClient } from "../src/mlFees.js";
+import { MlBillingClient } from "../src/mlBilling.js";
 import { loadCosts, generateCostsTemplate, costsPath } from "../src/costs.js";
 import { analyzeCampaigns } from "../src/analyze.js";
 import { analyzeProductProfitability } from "../src/analyzeProfitability.js";
 import { analyzeStockGaps } from "../src/analyzeStock.js";
+import { analyzeBilling } from "../src/analyzeBilling.js";
 import { aggregateAdsByItem } from "../src/aggregateAds.js";
 import { renderReport } from "../src/report.js";
 
@@ -133,8 +135,31 @@ async function main() {
     productAnalysis = analyzeProductProfitability({ ads: items, costs, feesByItem });
   }
 
+  console.log("Buscando el último período de facturación cerrado (comisiones y percepciones reales)...");
+  let billingAnalysis = null;
+  try {
+    const billingClient = new MlBillingClient(config);
+    const lastClosedPeriod = await billingClient.getLastClosedPeriod();
+    if (lastClosedPeriod) {
+      const [summary, perceptions] = await Promise.all([
+        billingClient.getPeriodSummary({ key: lastClosedPeriod.key }),
+        billingClient.getPerceptionsSummary({ key: lastClosedPeriod.key }),
+      ]);
+      billingAnalysis = analyzeBilling({ summary, perceptions });
+      console.log(
+        `Período de facturación ${lastClosedPeriod.period.date_from} a ${lastClosedPeriod.period.date_to}: comisión real ${billingAnalysis.salesCommission}, IIBB retenido ${billingAnalysis.totalIibb}.`
+      );
+    } else {
+      console.log("Aviso: no hay ningún período de facturación cerrado todavía.");
+    }
+  } catch (err) {
+    console.warn(
+      `Aviso: no pude traer comisiones/percepciones reales (¿tenés el permiso "Facturación" habilitado y re-autorizado?): ${err.message}`
+    );
+  }
+
   const currency = details[0]?.currency_id === "ARS" || config.siteId === "MLA" ? "$" : "";
-  const report = renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, currency });
+  const report = renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency });
 
   const fileName = `informe-${dateTo}.md`;
   const filePath = path.join(reportsDir, fileName);
