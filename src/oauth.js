@@ -90,9 +90,6 @@ export async function exchangeCodeForToken(config, { code, codeVerifier }) {
     redirect_uri: config.redirectUri,
     ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
   });
-  if (!body.refresh_token) {
-    console.error("Respuesta completa de Mercado Libre (sin refresh_token):", JSON.stringify(body, null, 2));
-  }
   return persistTokenResponse(body);
 }
 
@@ -106,18 +103,15 @@ export async function refreshAccessToken(config, refreshToken) {
   return persistTokenResponse(body);
 }
 
+// Idealmente Mercado Libre siempre devuelve un refresh_token y esta sesión se
+// renueva sola. En esta cuenta, por algún motivo que no pudimos aislar (no es
+// PKCE ni falta de offline_access ni una re-autorización), nunca lo devuelve.
+// En vez de bloquear todo, guardamos igual el access_token (dura 6 horas) y
+// dejamos que getValidAccessToken avise claramente cuando haya que repetir
+// `npm run authorize` a mano en vez de fallar a ciegas intentando refrescar.
 function persistTokenResponse(body) {
-  // Mercado Libre normalmente devuelve un refresh_token nuevo en cada respuesta,
-  // pero si alguna vez no lo hace, nunca lo pisamos con undefined: eso deja la
-  // sesión sin forma de renovarse más adelante sin que nadie se entere hasta que
-  // el access_token expira horas después. Mejor fallar fuerte en el momento.
   const previous = loadStoredCredentials();
-  const refreshToken = body.refresh_token ?? previous?.refresh_token;
-  if (!refreshToken) {
-    throw new Error(
-      "La respuesta de Mercado Libre no incluyó refresh_token y no había uno guardado antes. No se guardó nada; corré `node bin/authorize.js` de nuevo desde cero."
-    );
-  }
+  const refreshToken = body.refresh_token ?? previous?.refresh_token ?? null;
 
   const expiresAt = Date.now() + body.expires_in * 1000;
   const credentials = {
@@ -151,6 +145,11 @@ export async function getValidAccessToken(config) {
   const fiveMinutes = 5 * 60 * 1000;
   if (Date.now() < credentials.expires_at - fiveMinutes) {
     return credentials.access_token;
+  }
+  if (!credentials.refresh_token) {
+    throw new Error(
+      "El access_token venció y esta cuenta no tiene refresh_token disponible (Mercado Libre no lo emitió). Corré `npm run authorize` de nuevo para renovarlo — dura 6 horas."
+    );
   }
   const refreshed = await refreshAccessToken(config, credentials.refresh_token);
   return refreshed.access_token;

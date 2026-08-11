@@ -70,6 +70,11 @@ async function finishFlow(config, { code, state }) {
   console.log(
     `\nListo. Token guardado en .credentials.json para el usuario ${credentials.user_id} (scope: ${credentials.scope}).`
   );
+  if (!credentials.refresh_token) {
+    console.log(
+      "Aviso: esta cuenta no recibió refresh_token, así que el acceso dura 6 horas y no se renueva solo. Cuando expire, repetí este mismo paso (`node bin/authorize.js`)."
+    );
+  }
   console.log("Ya podés correr `npm run report` para generar el informe.");
 }
 

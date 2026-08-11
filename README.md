@@ -31,13 +31,15 @@ Completá `.env` con:
 
 `.env` está en `.gitignore`: nunca se sube al repositorio.
 
-## 3. Autorizar la aplicación (una sola vez)
+## 3. Autorizar la aplicación
 
 ```bash
 npm run authorize
 ```
 
-El script te va a mostrar una URL. Abrila en el navegador, logueado como administrador de la cuenta de Voltix, autorizá la app, y copiá el `code` (y el `state`) que aparecen en la URL a la que te redirige. El script guarda el `access_token`/`refresh_token` en `.credentials.json` (también gitignored) y renueva el token automáticamente cuando genera cada informe.
+El script te va a mostrar una URL. Abrila en el navegador, logueado como administrador de la cuenta de Voltix, autorizá la app, y copiá el `code` (y el `state`) que aparecen en la URL a la que te redirige. El script guarda el `access_token` en `.credentials.json` (también gitignored).
+
+**Sobre la renovación automática:** normalmente Mercado Libre devuelve junto al `access_token` un `refresh_token` que permite renovar la sesión sola, sin volver a pasar por el navegador. En esta cuenta, por algún motivo puntual de configuración que no pudimos aislar (probamos sin PKCE, pidiendo `offline_access` explícito, y revocando/re-autorizando desde cero — nada cambió el resultado), Mercado Libre no lo está emitiendo. Mientras eso siga así, el acceso dura **6 horas** y hay que repetir este mismo paso (`npm run authorize`) cuando venza — el script te avisa claramente cuando eso pasa en vez de fallar en silencio.
 
 ## 4. Generar el primer informe
 
