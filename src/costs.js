@@ -71,8 +71,14 @@ function escapeCsvCell(value) {
 
 // Crea config/costos.csv precargado con los productos reales que están corriendo en
 // Mercado Ads, para que el vendedor solo tenga que escribir el costo, no armar el archivo.
+//
 // El precio mostrado es el precio REAL vigente (con descuento individual del vendedor
-// aplicado, si tiene uno activo), no el precio de lista tachado.
+// aplicado, si tiene uno activo), no el precio de lista tachado. Para productos sin
+// stock ahora mismo (status "hold"), el precio actual puede no reflejar a qué precio
+// se vendió mientras SÍ tenía stock (por ejemplo si tenía un descuento que ya venció) —
+// en esos casos usamos el precio promedio real de venta del período en su lugar. Esto es
+// solo el valor de referencia que se muestra en la planilla: el cálculo de ganancia real
+// siempre usa el precio real de venta (ingresos ÷ unidades), nunca esta columna.
 export async function generateCostsTemplate(items, discountsClient) {
   const header = "item_id,titulo,precio_real,costo_producto,envio_extra,comision_pct,notas";
   const seen = new Set();
@@ -82,9 +88,16 @@ export async function generateCostsTemplate(items, discountsClient) {
     if (seen.has(item.item_id)) continue;
     seen.add(item.item_id);
 
+    const units = item.metrics?.units_quantity ?? 0;
+    const avgSoldPrice = units > 0 ? (item.metrics.total_amount ?? 0) / units : null;
+
     let price = item.price ?? "";
     let notas = "";
-    if (discountsClient) {
+
+    if (item.status === "hold" && avgSoldPrice != null) {
+      price = Math.round(avgSoldPrice * 100) / 100;
+      notas = "sin stock — precio promedio real de venta del período (no el de lista, puede haber cambiado)";
+    } else if (discountsClient) {
       try {
         const { currentPrice, hasActiveDiscount } = await discountsClient.getCurrentPrice(item.item_id);
         if (currentPrice != null) price = currentPrice;
