@@ -56,6 +56,9 @@ export function buildAuthorizationUrl(config, { state, codeChallenge }) {
   url.searchParams.set("state", state);
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
+  // offline_access es lo que habilita que la respuesta incluya un refresh_token;
+  // sin pedirlo explícito, ML puede devolver solo un access_token de corta duración.
+  url.searchParams.set("scope", "offline_access read write");
   return url.toString();
 }
 
