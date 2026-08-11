@@ -1,3 +1,3 @@
-item_id,titulo,precio_publicacion,costo_producto,envio_extra,comision_pct,notas
+item_id,titulo,precio_real,costo_producto,envio_extra,comision_pct,notas
 MLA123456789,Ejemplo — Cargador rápido 65W,15000,7000,0,13,
-MLA987654321,Ejemplo — Cable USB-C 2m,3000,900,100,,pago Flex en algunos envíos; comisión sin cargar: se intenta calcular sola
+MLA987654321,Ejemplo — Cable USB-C 2m,2500,900,100,,precio con descuento activo (precio de lista era 3000); comisión sin cargar: se intenta calcular sola

@@ -5,6 +5,7 @@ import { loadConfig, marginsPath, reportsDir } from "../src/config.js";
 import { MercadoAdsClient } from "../src/mercadoAdsClient.js";
 import { MlFeesClient } from "../src/mlFees.js";
 import { MlBillingClient } from "../src/mlBilling.js";
+import { MlDiscountsClient } from "../src/mlDiscounts.js";
 import { loadCosts, generateCostsTemplate, costsPath } from "../src/costs.js";
 import { analyzeCampaigns } from "../src/analyze.js";
 import { analyzeProductProfitability } from "../src/analyzeProfitability.js";
@@ -73,6 +74,7 @@ async function main() {
   const { dateFrom, dateTo } = resolveDateRange(parseArgs(process.argv.slice(2)));
   const client = new MercadoAdsClient(config);
   const feesClient = new MlFeesClient(config);
+  const discountsClient = new MlDiscountsClient(config);
 
   console.log(`Buscando anunciantes (product_id=${config.productId})...`);
   const advertisers = await client.getAdvertisers();
@@ -134,10 +136,14 @@ async function main() {
   const costs = loadCosts();
   if (!costs) {
     if (items.length > 0) {
-      const count = generateCostsTemplate(items);
+      console.log("Consultando precio real vigente de cada producto (con descuentos activos si tenés)...");
+      const { count, lookupFailures } = await generateCostsTemplate(items, discountsClient);
       console.log(
-        `\nGeneré ${costsPath} con ${count} productos reales de tu cuenta. Completá la columna "costo_producto" (y "envio_extra" si corresponde) y volvé a correr "npm run report" para ver la ganancia real.\n`
+        `\nGeneré ${costsPath} con ${count} productos reales de tu cuenta (precio con descuento incluido, si tenías uno activo). Completá la columna "costo_producto" (y "envio_extra" si corresponde) y volvé a correr "npm run report" para ver la ganancia real.\n`
       );
+      if (lookupFailures > 0) {
+        console.warn(`Aviso: no pude confirmar el precio con descuento de ${lookupFailures} producto(s); quedaron con el precio de lista.`);
+      }
     }
   } else {
     console.log("Calculando comisión real de Mercado Libre por producto...");

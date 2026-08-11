@@ -71,17 +71,31 @@ function escapeCsvCell(value) {
 
 // Crea config/costos.csv precargado con los productos reales que están corriendo en
 // Mercado Ads, para que el vendedor solo tenga que escribir el costo, no armar el archivo.
-export function generateCostsTemplate(items) {
-  const header = "item_id,titulo,precio_publicacion,costo_producto,envio_extra,comision_pct,notas";
+// El precio mostrado es el precio REAL vigente (con descuento individual del vendedor
+// aplicado, si tiene uno activo), no el precio de lista tachado.
+export async function generateCostsTemplate(items, discountsClient) {
+  const header = "item_id,titulo,precio_real,costo_producto,envio_extra,comision_pct,notas";
   const seen = new Set();
   const rows = [];
+  let lookupFailures = 0;
   for (const item of items) {
     if (seen.has(item.item_id)) continue;
     seen.add(item.item_id);
-    rows.push(
-      [item.item_id, escapeCsvCell(item.title), item.price ?? "", "", "", "", ""].join(",")
-    );
+
+    let price = item.price ?? "";
+    let notas = "";
+    if (discountsClient) {
+      try {
+        const { currentPrice, hasActiveDiscount } = await discountsClient.getCurrentPrice(item.item_id);
+        if (currentPrice != null) price = currentPrice;
+        if (hasActiveDiscount) notas = "tiene descuento activo";
+      } catch {
+        lookupFailures++;
+      }
+    }
+
+    rows.push([item.item_id, escapeCsvCell(item.title), price, "", "", "", notas].join(","));
   }
   writeFileSync(costsPath, [header, ...rows].join("\n") + "\n", "utf8");
-  return rows.length;
+  return { count: rows.length, lookupFailures };
 }
