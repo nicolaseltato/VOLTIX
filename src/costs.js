@@ -107,7 +107,7 @@ export async function generateCostsTemplate(items, discountsClient) {
       }
     }
 
-    rows.push([item.item_id, escapeCsvCell(item.title), price, "", "", "", notas].join(","));
+    rows.push([item.item_id, escapeCsvCell(item.title), price, "", "", "", escapeCsvCell(notas)].join(","));
   }
   writeFileSync(costsPath, [header, ...rows].join("\n") + "\n", "utf8");
   return { count: rows.length, lookupFailures };
