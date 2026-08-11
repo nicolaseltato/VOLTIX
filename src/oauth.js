@@ -99,10 +99,22 @@ export async function refreshAccessToken(config, refreshToken) {
 }
 
 function persistTokenResponse(body) {
+  // Mercado Libre normalmente devuelve un refresh_token nuevo en cada respuesta,
+  // pero si alguna vez no lo hace, nunca lo pisamos con undefined: eso deja la
+  // sesión sin forma de renovarse más adelante sin que nadie se entere hasta que
+  // el access_token expira horas después. Mejor fallar fuerte en el momento.
+  const previous = loadStoredCredentials();
+  const refreshToken = body.refresh_token ?? previous?.refresh_token;
+  if (!refreshToken) {
+    throw new Error(
+      "La respuesta de Mercado Libre no incluyó refresh_token y no había uno guardado antes. No se guardó nada; corré `node bin/authorize.js` de nuevo desde cero."
+    );
+  }
+
   const expiresAt = Date.now() + body.expires_in * 1000;
   const credentials = {
     access_token: body.access_token,
-    refresh_token: body.refresh_token,
+    refresh_token: refreshToken,
     user_id: body.user_id,
     scope: body.scope,
     expires_at: expiresAt,
