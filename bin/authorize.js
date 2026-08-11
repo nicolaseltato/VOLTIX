@@ -24,11 +24,16 @@ function parseArgs(argv) {
 }
 
 async function startFlow(config) {
+  const usePkce = process.env.SKIP_PKCE !== "1";
   const state = randomBytes(16).toString("hex");
   const { codeVerifier, codeChallenge } = generatePkcePair();
-  const authUrl = buildAuthorizationUrl(config, { state, codeChallenge });
+  const authUrl = buildAuthorizationUrl(config, { state, codeChallenge, usePkce });
 
-  writeFileSync(pendingPath, JSON.stringify({ state, codeVerifier }, null, 2), { mode: 0o600 });
+  writeFileSync(
+    pendingPath,
+    JSON.stringify({ state, codeVerifier: usePkce ? codeVerifier : null }, null, 2),
+    { mode: 0o600 }
+  );
 
   console.log("\n1. Abrí esta URL en tu navegador, logueado como ADMINISTRADOR de la cuenta de Voltix (no un colaborador):\n");
   console.log(authUrl);

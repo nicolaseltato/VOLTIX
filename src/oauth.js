@@ -42,7 +42,7 @@ export function generatePkcePair() {
   return { codeVerifier, codeChallenge };
 }
 
-export function buildAuthorizationUrl(config, { state, codeChallenge }) {
+export function buildAuthorizationUrl(config, { state, codeChallenge, usePkce = true }) {
   const domain = AUTH_DOMAINS[config.siteId];
   if (!domain) {
     throw new Error(
@@ -54,8 +54,10 @@ export function buildAuthorizationUrl(config, { state, codeChallenge }) {
   url.searchParams.set("client_id", config.appId);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("state", state);
-  url.searchParams.set("code_challenge", codeChallenge);
-  url.searchParams.set("code_challenge_method", "S256");
+  if (usePkce) {
+    url.searchParams.set("code_challenge", codeChallenge);
+    url.searchParams.set("code_challenge_method", "S256");
+  }
   // offline_access es lo que habilita que la respuesta incluya un refresh_token;
   // sin pedirlo explícito, ML puede devolver solo un access_token de corta duración.
   url.searchParams.set("scope", "offline_access read write");
@@ -86,7 +88,7 @@ export async function exchangeCodeForToken(config, { code, codeVerifier }) {
     client_secret: config.clientSecret,
     code,
     redirect_uri: config.redirectUri,
-    code_verifier: codeVerifier,
+    ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
   });
   if (!body.refresh_token) {
     console.error("Respuesta completa de Mercado Libre (sin refresh_token):", JSON.stringify(body, null, 2));
