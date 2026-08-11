@@ -1,8 +1,12 @@
 // Ganancia real por producto = ventas generadas por publicidad
 //   - costo del producto (COGS)
-//   - comisión de Mercado Libre (auto-calculada por sale_fee_amount)
+//   - comisión de Mercado Libre (auto-calculada por sale_fee_amount, o manual vía comision_pct)
 //   - envío extra a cargo del vendedor (si lo cargaste en config/costos.csv)
 //   - inversión en publicidad de ese producto
+//
+// La comisión manual (comision_pct) se aplica sobre el precio promedio REAL de venta
+// del período (adRevenue / units), no sobre el precio de lista de la publicación —
+// así un producto con descuento activo no infla la comisión estimada.
 //
 // Si no tenemos el costo del producto, no inventamos un número: el producto queda
 // marcado como "sin costo cargado" y se excluye de los totales de ganancia real.
@@ -11,12 +15,17 @@ export function analyzeProductProfitability({ ads, costs, feesByItem }) {
   const rows = ads.map((ad) => {
     const m = ad.metrics ?? {};
     const cost = costs?.get(ad.item_id) ?? null;
-    const mlFeePerUnit = feesByItem.get(ad.item_id) ?? null;
-    const hasCost = cost?.cogs != null && mlFeePerUnit != null;
 
     const units = m.units_quantity ?? 0;
     const adSpend = m.cost ?? 0;
     const adRevenue = m.total_amount ?? 0;
+
+    let mlFeePerUnit = feesByItem.get(ad.item_id) ?? null;
+    if (cost?.comisionPct != null && units > 0) {
+      const avgRealPrice = adRevenue / units;
+      mlFeePerUnit = avgRealPrice * (cost.comisionPct / 100);
+    }
+    const hasCost = cost?.cogs != null && mlFeePerUnit != null;
 
     let realProfit = null;
     let realMarginPct = null;

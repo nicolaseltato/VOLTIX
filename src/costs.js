@@ -54,9 +54,11 @@ export function loadCosts() {
   for (const row of rows) {
     if (!row.item_id) continue;
     const cogsRaw = (row.costo_producto ?? "").trim();
+    const comisionRaw = (row.comision_pct ?? "").trim();
     byItemId.set(row.item_id, {
       cogs: cogsRaw ? Number(cogsRaw) : null,
       extraShipping: row.envio_extra ? Number(row.envio_extra) : 0,
+      comisionPct: comisionRaw ? Number(comisionRaw) : null,
     });
   }
   return byItemId;
@@ -70,14 +72,14 @@ function escapeCsvCell(value) {
 // Crea config/costos.csv precargado con los productos reales que están corriendo en
 // Mercado Ads, para que el vendedor solo tenga que escribir el costo, no armar el archivo.
 export function generateCostsTemplate(items) {
-  const header = "item_id,titulo,precio,costo_producto,envio_extra,notas";
+  const header = "item_id,titulo,precio_publicacion,costo_producto,envio_extra,comision_pct,notas";
   const seen = new Set();
   const rows = [];
   for (const item of items) {
     if (seen.has(item.item_id)) continue;
     seen.add(item.item_id);
     rows.push(
-      [item.item_id, escapeCsvCell(item.title), item.price ?? "", "", "", ""].join(",")
+      [item.item_id, escapeCsvCell(item.title), item.price ?? "", "", "", "", ""].join(",")
     );
   }
   writeFileSync(costsPath, [header, ...rows].join("\n") + "\n", "utf8");

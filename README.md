@@ -58,6 +58,7 @@ Abrí `config/costos.csv` y completá, por cada producto:
 
 - **`costo_producto`** (obligatorio para ese producto): lo que te cuesta a vos producirlo o comprarlo (COGS), sin publicidad ni comisión.
 - **`envio_extra`** (opcional, default 0): solo si vos pagás una parte del envío de tu bolsillo (por ejemplo Mercado Envíos Flex o Colecta). Si el envío ya te lo descuenta Mercado Libre en la comisión, dejalo en 0.
+- **`comision_pct`** (opcional): el agente intenta calcular la comisión de ML automáticamente; en algunos entornos de red ese cálculo automático no funciona (el calculador público de ML bloquea ciertas IPs) y el producto queda marcado "sin costo" aunque hayas cargado `costo_producto`. En ese caso completá acá el % de comisión de esa publicación — lo ves en tu panel de Mercado Libre, en "Costos por vender" (varía según tipo de publicación: Clásica, Premium, etc.). Se aplica sobre el precio **real** de venta del período, no sobre el precio de lista, así que contempla cualquier descuento activo.
 
 Podés completar solo los productos que te interesen — el informe muestra por separado los que sí tienen costo cargado (con ganancia real calculada) y los que todavía no.
 

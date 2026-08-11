@@ -42,18 +42,28 @@ function loadMarginsConfig() {
 }
 
 // Trae, para cada producto con costo cargado, la comisión real de Mercado Libre.
-// No la pedimos al vendedor: la calculamos con el mismo calculador que usa ML.
+// Si el vendedor cargó "comision_pct" a mano en costos.csv usamos ese dato (más
+// confiable, y evita depender del calculador público de ML que en algunos entornos
+// de red está bloqueado); si no, intentamos calcularla automáticamente.
 async function fetchFeesForCostedItems({ feesClient, siteId, ads, costs }) {
   const feesByItem = new Map();
   if (!costs) return feesByItem;
-  const itemsWithCost = ads.filter((ad) => costs.get(ad.item_id)?.cogs != null);
-  for (const ad of itemsWithCost) {
+  const itemsNeedingAutoFee = ads.filter(
+    (ad) => costs.get(ad.item_id)?.cogs != null && costs.get(ad.item_id)?.comisionPct == null
+  );
+  let apiFailures = 0;
+  for (const ad of itemsNeedingAutoFee) {
     try {
       const fee = await feesClient.getSaleFeeForItem(ad.item_id, siteId);
       feesByItem.set(ad.item_id, fee);
-    } catch (err) {
-      console.warn(`  Aviso: no se pudo calcular la comisión de ML para ${ad.item_id}: ${err.message}`);
+    } catch {
+      apiFailures++;
     }
+  }
+  if (apiFailures > 0) {
+    console.warn(
+      `Aviso: no pude calcular la comisión automática para ${apiFailures} producto(s) (el calculador de Mercado Libre no responde desde este entorno de red). Agregá el % de comisión en la columna "comision_pct" de config/costos.csv para esos productos — lo encontrás en tu panel de Mercado Libre, en "Costos por vender".`
+    );
   }
   return feesByItem;
 }

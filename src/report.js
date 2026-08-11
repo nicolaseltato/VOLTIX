@@ -253,7 +253,7 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
     lines.push("## Qué necesito de vos");
     lines.push("");
     lines.push(
-      "Para calcular la **ganancia real** (no solo ACOS/ROAS) necesito el costo de tus productos. Completá la columna `costo_producto` en `config/costos.csv` (y `envio_extra` si vos pagás parte del envío, por ejemplo con Flex o Colecta) y volvé a correr `npm run report`. La comisión de Mercado Libre y el resto de los datos ya se calculan solos."
+      "Para calcular la **ganancia real** (no solo ACOS/ROAS) necesito el costo de tus productos. Completá la columna `costo_producto` en `config/costos.csv` (y `envio_extra` si vos pagás parte del envío, por ejemplo con Flex o Colecta) y volvé a correr `npm run report`. Si un producto queda igual marcado como \"sin costo\" después de eso, completá también `comision_pct` para ese producto — es el % que Mercado Libre te cobra por venderlo, lo ves en tu panel en \"Costos por vender\"."
     );
   }
 
