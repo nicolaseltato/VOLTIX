@@ -10,6 +10,12 @@ const ACTION_LABELS = {
   pausada: "⏸️ Pausada",
 };
 
+const FEE_SOURCE_LABELS = {
+  real: "🟢 real",
+  manual: "🟡 %manual",
+  auto: "🔵 auto",
+};
+
 function fmtMoney(n, currency) {
   if (n == null || Number.isNaN(n)) return "-";
   return `${currency ?? ""}${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`.trim();
@@ -150,14 +156,22 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
   }
 
   if (withCost.length > 0) {
+    const feeSourceCount = withCost.reduce((acc, r) => {
+      acc[r.feeSource] = (acc[r.feeSource] ?? 0) + 1;
+      return acc;
+    }, {});
     lines.push("");
     lines.push("### Detalle por producto (con costo cargado)");
+    lines.push("");
+    lines.push(
+      `_Origen de la comisión: ${FEE_SOURCE_LABELS.real} en ${feeSourceCount.real ?? 0} productos (de tus órdenes reales) · ${FEE_SOURCE_LABELS.manual} en ${feeSourceCount.manual ?? 0} (% que cargaste) · ${FEE_SOURCE_LABELS.auto} en ${feeSourceCount.auto ?? 0} (calculador de ML)._`
+    );
     lines.push("");
     lines.push("| Producto | Unidades | Inversión ads | Venta por ads | ACOS | ROAS | Costo prod. | Comisión ML | Envío extra | **Ganancia real** | Margen real |");
     lines.push("|---|---|---|---|---|---|---|---|---|---|---|");
     for (const r of withCost) {
       lines.push(
-        `| ${r.title} | ${r.units} | ${fmtMoney(r.adSpend, currency)} | ${fmtMoney(r.adRevenue, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} |`
+        `| ${r.title} | ${r.units} | ${fmtMoney(r.adSpend, currency)} | ${fmtMoney(r.adRevenue, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} ${FEE_SOURCE_LABELS[r.feeSource] ?? ""} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} |`
       );
     }
   }

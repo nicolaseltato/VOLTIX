@@ -6,12 +6,15 @@ import { MercadoAdsClient } from "../src/mercadoAdsClient.js";
 import { MlFeesClient } from "../src/mlFees.js";
 import { MlBillingClient } from "../src/mlBilling.js";
 import { MlDiscountsClient } from "../src/mlDiscounts.js";
+import { MlOrdersClient } from "../src/mlOrders.js";
+import { loadStoredCredentials } from "../src/oauth.js";
 import { loadCosts, generateCostsTemplate, costsPath } from "../src/costs.js";
 import { analyzeCampaigns } from "../src/analyze.js";
 import { analyzeProductProfitability } from "../src/analyzeProfitability.js";
 import { analyzeStockGaps } from "../src/analyzeStock.js";
 import { analyzeBilling } from "../src/analyzeBilling.js";
 import { aggregateAdsByItem } from "../src/aggregateAds.js";
+import { aggregateOrdersByItem } from "../src/analyzeOrders.js";
 import { renderReport } from "../src/report.js";
 
 function parseArgs(argv) {
@@ -46,12 +49,16 @@ function loadMarginsConfig() {
 // Si el vendedor cargó "comision_pct" a mano en costos.csv usamos ese dato (más
 // confiable, y evita depender del calculador público de ML que en algunos entornos
 // de red está bloqueado); si no, intentamos calcularla automáticamente.
-async function fetchFeesForCostedItems({ feesClient, siteId, ads, costs }) {
+async function fetchFeesForCostedItems({ feesClient, siteId, ads, costs, ordersByItem }) {
   const feesByItem = new Map();
   if (!costs) return feesByItem;
-  const itemsNeedingAutoFee = ads.filter(
-    (ad) => costs.get(ad.item_id)?.cogs != null && costs.get(ad.item_id)?.comisionPct == null
-  );
+  const itemsNeedingAutoFee = ads.filter((ad) => {
+    const cost = costs.get(ad.item_id);
+    if (cost?.cogs == null) return false;
+    if (cost.comisionPct != null) return false; // ya tiene comisión manual
+    if (ordersByItem?.get(ad.item_id)?.saleFeePerUnit != null) return false; // ya tiene comisión real
+    return true;
+  });
   let apiFailures = 0;
   for (const ad of itemsNeedingAutoFee) {
     try {
@@ -132,6 +139,24 @@ async function main() {
     );
   }
 
+  console.log("Buscando órdenes reales (comisión y envío exactos por venta)...");
+  let ordersByItem = null;
+  try {
+    const ordersClient = new MlOrdersClient(config);
+    const credentials = loadStoredCredentials();
+    const orders = await ordersClient.getAllOrders({
+      sellerId: credentials.user_id,
+      dateFrom,
+      dateTo,
+    });
+    ordersByItem = aggregateOrdersByItem(orders);
+    console.log(`${orders.length} órdenes pagas encontradas, con datos reales de ${ordersByItem.size} productos.`);
+  } catch (err) {
+    console.warn(
+      `Aviso: no pude traer órdenes reales (¿tenés el permiso "Ventas y envíos" habilitado y re-autorizado?): ${err.message}`
+    );
+  }
+
   let productAnalysis = null;
   const costs = loadCosts();
   if (!costs) {
@@ -147,8 +172,8 @@ async function main() {
     }
   } else {
     console.log("Calculando comisión real de Mercado Libre por producto...");
-    const feesByItem = await fetchFeesForCostedItems({ feesClient, siteId: advertiser.site_id, ads: items, costs });
-    productAnalysis = analyzeProductProfitability({ ads: items, costs, feesByItem });
+    const feesByItem = await fetchFeesForCostedItems({ feesClient, siteId: advertiser.site_id, ads: items, costs, ordersByItem });
+    productAnalysis = analyzeProductProfitability({ ads: items, costs, feesByItem, ordersByItem });
   }
 
   console.log("Buscando el último período de facturación cerrado (comisiones y percepciones reales)...");
