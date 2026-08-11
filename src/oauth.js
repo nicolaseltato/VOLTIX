@@ -88,6 +88,9 @@ export async function exchangeCodeForToken(config, { code, codeVerifier }) {
     redirect_uri: config.redirectUri,
     code_verifier: codeVerifier,
   });
+  if (!body.refresh_token) {
+    console.error("Respuesta completa de Mercado Libre (sin refresh_token):", JSON.stringify(body, null, 2));
+  }
   return persistTokenResponse(body);
 }
 
