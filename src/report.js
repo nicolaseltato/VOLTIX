@@ -166,12 +166,15 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
     lines.push(
       `_Origen de la comisión: ${FEE_SOURCE_LABELS.real} en ${feeSourceCount.real ?? 0} productos (de tus órdenes reales) · ${FEE_SOURCE_LABELS.manual} en ${feeSourceCount.manual ?? 0} (% que cargaste) · ${FEE_SOURCE_LABELS.auto} en ${feeSourceCount.auto ?? 0} (calculador de ML)._`
     );
+    lines.push(
+      "_\"Unidades\" y \"Venta total\" son todas las ventas reales del producto en el período (con o sin click de publicidad de por medio); \"Inversión ads\" es lo que gastaste publicitándolo._"
+    );
     lines.push("");
-    lines.push("| Producto | Unidades | Inversión ads | Venta por ads | ACOS | ROAS | Costo prod. | Comisión ML | Envío extra | **Ganancia real** | Margen real |");
+    lines.push("| Producto | Unidades | Venta total | Inversión ads | ACOS ads | ROAS ads | Costo prod. | Comisión ML | Envío extra | **Ganancia real** | Margen real |");
     lines.push("|---|---|---|---|---|---|---|---|---|---|---|");
     for (const r of withCost) {
       lines.push(
-        `| ${r.title} | ${r.units} | ${fmtMoney(r.adSpend, currency)} | ${fmtMoney(r.adRevenue, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} ${FEE_SOURCE_LABELS[r.feeSource] ?? ""} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} |`
+        `| ${r.title} | ${r.units} | ${fmtMoney(r.revenue, currency)} | ${fmtMoney(r.adSpend, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} ${FEE_SOURCE_LABELS[r.feeSource] ?? ""} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} |`
       );
     }
   }
