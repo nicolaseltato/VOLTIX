@@ -6,4 +6,5 @@ reports/*.md
 !reports/.gitkeep
 config/margins.json
 config/costos.csv
+config/gastos-fijos.json
 *.log

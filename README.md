@@ -80,6 +80,20 @@ cp config/margins.example.json config/margins.json
 
 Editá `default_margin_pct` con tu margen bruto promedio (%). Esto es un atajo rápido a nivel campaña — el análisis de `costos.csv` por producto es siempre más preciso.
 
+## 7. (Opcional) Gastos fijos para la Ganancia Neta Real
+
+El informe siempre muestra la ganancia real por producto (venta − costo − comisión − envío − ads). Para llegar al número final de verdad — la **Ganancia Neta Real**, después de Monotributo y otros gastos fijos — completá también:
+
+```bash
+cp config/gastos-fijos.example.json config/gastos-fijos.json
+```
+
+Editá `cuota_monotributo` (tu cuota mensual real, puede variar por recategorización) y, si querés, `otros_gastos` (consultora, herramientas pagas, etc.). Como Voltix está en Monotributo, el informe nunca calcula ni descuenta IVA ni retenciones de Ganancias — no corresponden en este régimen.
+
+`config/gastos-fijos.json` nunca se sube al repositorio (está en `.gitignore`).
+
+Con eso, el informe arma la **cascada completa de rentabilidad**: ingresos brutos → comisión ML → envío no cubierto → IIBB retenido → ingreso neto de ML → COGS → margen de contribución → inversión en ads → Monotributo → otros gastos → Ganancia Neta Real. Dos líneas de esa cascada (costo fijo por venta y costo por ofrecer cuotas, que Mercado Libre no discrimina por separado en las APIs que usa este agente) y las anulaciones/reembolsos (que todavía no se traen) se marcan explícitamente como no disponibles en vez de estimarse — el informe avisa cuando el número final está incompleto por eso.
+
 ## Uso día a día
 
 ```bash
@@ -92,10 +106,13 @@ El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en co
 
 Incluye:
 
+- **Ganancia Neta Real arriba de todo**: el número que importa (después de todos los costos, incluyendo Monotributo y otros gastos fijos si los cargaste) y el % de margen neto sobre ventas, en las primeras líneas del informe.
+- **Alertas**: productos con ganancia real negativa y campañas cuyo ACOS supera el margen bruto real del producto que promocionan (quemando plata aunque vendan), arriba de todo el detalle.
+- **Cascada de rentabilidad real**: cada escalón por separado (comisión ML, envío no cubierto, IIBB, COGS, ads, Monotributo, otros gastos) hasta la Ganancia Neta Real — así ves en qué paso se te va la plata, no solo el resultado final. Las líneas que ML no discrimina por separado o que este agente todavía no trae (costo fijo por venta, costo por cuotas, anulaciones) se marcan explícitamente como no disponibles, nunca se estiman.
 - **Resumen ejecutivo**: inversión, ventas atribuidas, ACOS/ROAS general, ganancia real total.
 - **Comisiones y percepciones reales**: del último período de facturación cerrado — comisión de venta real, publicidad facturada, envíos, y percepciones de Ingresos Brutos desglosadas por jurisdicción (requiere el permiso "Facturación", ver paso 1).
 - **Productos pausados por falta de stock**: productos con historial de venta por publicidad que Mercado Libre puso en pausa automática por no tener stock, ordenados por venta generada — para priorizar reposición.
-- **Ganancia real por producto**: tabla con costo de producto, comisión ML, envío extra y ganancia real, más una conclusión corta de qué potenciar y qué está perdiendo plata.
+- **Ganancia real por producto**: tabla con costo de producto, comisión ML, envío extra, ganancia real y margen bruto (sin ads), más una conclusión corta de qué potenciar y qué está perdiendo plata.
 - **Próximos movimientos de campaña**: ajustes tácticos de presupuesto/puja.
 - **Detalle por campaña**.
 
@@ -134,12 +151,15 @@ src/mlBilling.js         Cliente de Facturación (períodos, comisión/percepcio
 src/costs.js             Lectura/generación de config/costos.csv (costo de producto y envío extra)
 src/aggregateAds.js      Agrupa anuncios por producto cuando corren en más de una campaña
 src/analyze.js           Clasificación táctica por campaña (presupuesto/puja)
-src/analyzeProfitability.js  Ganancia real por producto
+src/analyzeProfitability.js  Ganancia real por producto (incluye alerta ACOS > margen bruto)
 src/analyzeStock.js      Detección de productos pausados por falta de stock
 src/analyzeBilling.js    Comisión real, envíos y percepciones IIBB/IVA por período
+src/analyzeCascade.js    Cascada completa: ingresos brutos → Ganancia Neta Real
 src/report.js            Generador del informe en Markdown
 config/margins.example.json  Plantilla de margen rápido (opcional, a nivel campaña)
+config/gastos-fijos.example.json  Plantilla de Monotributo y otros gastos fijos (opcional, para la Ganancia Neta Real)
 reports/                 Informes generados (no se versionan)
+docs/agente-rentabilidad-prompt.md  System prompt de referencia para análisis conversacional (Claude Project, Custom GPT, etc.)
 ```
 
 ## Notas de seguridad

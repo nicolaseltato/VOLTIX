@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { loadConfig, marginsPath, reportsDir } from "../src/config.js";
+import { loadConfig, marginsPath, gastosFijosPath, reportsDir } from "../src/config.js";
 import { MercadoAdsClient } from "../src/mercadoAdsClient.js";
 import { MlFeesClient } from "../src/mlFees.js";
 import { MlBillingClient } from "../src/mlBilling.js";
@@ -13,6 +13,7 @@ import { analyzeCampaigns } from "../src/analyze.js";
 import { analyzeProductProfitability } from "../src/analyzeProfitability.js";
 import { analyzeStockGaps } from "../src/analyzeStock.js";
 import { analyzeBilling } from "../src/analyzeBilling.js";
+import { buildProfitabilityCascade } from "../src/analyzeCascade.js";
 import { aggregateAdsByItem } from "../src/aggregateAds.js";
 import { aggregateOrdersByItem } from "../src/analyzeOrders.js";
 import { renderReport } from "../src/report.js";
@@ -43,6 +44,18 @@ function resolveDateRange({ days, from, to }) {
 function loadMarginsConfig() {
   if (!existsSync(marginsPath)) return null;
   return JSON.parse(readFileSync(marginsPath, "utf8"));
+}
+
+// Gastos fijos declarados por el usuario (Monotributo, consultora, herramientas, etc.)
+// que no vienen de ninguna API de Mercado Libre — necesarios para llegar a la
+// Ganancia Neta Real, no solo a la ganancia antes de gastos fijos.
+function loadGastosFijos() {
+  if (!existsSync(gastosFijosPath)) return null;
+  const raw = JSON.parse(readFileSync(gastosFijosPath, "utf8"));
+  return {
+    cuotaMonotributo: raw.cuota_monotributo ?? null,
+    otrosGastos: (raw.otros_gastos ?? []).map((g) => ({ concepto: g.concepto, monto: g.monto ?? 0 })),
+  };
 }
 
 // Trae, para cada producto con costo cargado, la comisión real de Mercado Libre.
@@ -199,8 +212,11 @@ async function main() {
     );
   }
 
+  const gastosFijos = loadGastosFijos();
+  const cascade = buildProfitabilityCascade({ productAnalysis, billingAnalysis, gastosFijos });
+
   const currency = details[0]?.currency_id === "ARS" || config.siteId === "MLA" ? "$" : "";
-  const report = renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency });
+  const report = renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, cascade, currency });
 
   const fileName = `informe-${dateTo}.md`;
   const filePath = path.join(reportsDir, fileName);
