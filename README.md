@@ -88,7 +88,9 @@ npm run report -- --days=7                     # últimos 7 días
 npm run report -- --from=2026-07-01 --to=2026-07-31
 ```
 
-El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en consola. Por ahora es 100% manual (lo corrés vos cuando lo necesitás); el código ya está separado en módulos (`src/`) para que el día de mañana se pueda disparar solo (por ejemplo semanal) sin tener que rehacer nada — todavía no está programado ese disparo automático.
+El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en consola.
+
+**Alternativa sin terminal:** si accedés a este repo desde Claude Code (claude.ai/code), no hace falta correr nada de esto a mano — pedile el informe por chat ("dame el reporte", "cómo van las campañas de la semana") y Claude corre los comandos por vos, incluyendo la reautorización cuando el token de 6 horas vence. Ver `CLAUDE.md` para el detalle de cómo lo maneja.
 
 Incluye:
 
