@@ -1,0 +1,11 @@
+{
+  "_comment": "Copiá este archivo a config/gastos-fijos.json (está en .gitignore, no se sube al repo) y completá tus gastos fijos reales. Esto permite calcular la GANANCIA NETA REAL completa en el informe, no solo la ganancia antes de Monotributo y otros gastos.",
+
+  "cuota_monotributo": 45000,
+
+  "_comment_otros_gastos": "Gastos fijos o variables del período que no vienen de Mercado Libre: consultora externa, herramientas pagas, etc. Sumalos como una lista de {concepto, monto}.",
+  "otros_gastos": [
+    { "concepto": "Consultora contable", "monto": 60000 },
+    { "concepto": "Herramientas (Nubox, Tienda Nube, etc.)", "monto": 15000 }
+  ]
+}

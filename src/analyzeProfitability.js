@@ -51,12 +51,20 @@ export function analyzeProductProfitability({ ads, costs, feesByItem, ordersByIt
 
     let realProfit = null;
     let realMarginPct = null;
+    let grossMarginPct = null; // margen antes de publicidad: lo que hay disponible para pagar ads sin perder plata
+    let acosExceedsGrossMargin = false;
     if (hasCost) {
       const cogsTotal = units * cost.cogs;
       const feeTotal = units * mlFeePerUnit;
       const shippingTotal = units * (cost.extraShipping ?? 0);
-      realProfit = revenue - cogsTotal - feeTotal - shippingTotal - adSpend;
+      const grossProfit = revenue - cogsTotal - feeTotal - shippingTotal;
+      realProfit = grossProfit - adSpend;
       realMarginPct = revenue > 0 ? (realProfit / revenue) * 100 : null;
+      grossMarginPct = revenue > 0 ? (grossProfit / revenue) * 100 : null;
+      // Si el ACOS de la campaña que promociona este producto supera su margen bruto real,
+      // esa campaña está quemando plata aunque venda mucho — aunque el producto en su
+      // conjunto todavía dé positivo por ventas orgánicas mezcladas en el período.
+      acosExceedsGrossMargin = m.acos != null && grossMarginPct != null && m.acos > grossMarginPct;
     }
 
     return {
@@ -78,6 +86,8 @@ export function analyzeProductProfitability({ ads, costs, feesByItem, ordersByIt
       hasCost,
       realProfit,
       realMarginPct,
+      grossMarginPct,
+      acosExceedsGrossMargin,
     };
   });
 
@@ -86,6 +96,7 @@ export function analyzeProductProfitability({ ads, costs, feesByItem, ordersByIt
 
   const toScale = [...withCost].filter((r) => r.realProfit > 0).sort((a, b) => b.realProfit - a.realProfit);
   const losingMoney = [...withCost].filter((r) => r.realProfit <= 0).sort((a, b) => a.realProfit - b.realProfit);
+  const burningAds = [...withCost].filter((r) => r.acosExceedsGrossMargin).sort((a, b) => b.adSpend - a.adSpend);
 
   const totalRealProfit = withCost.reduce((acc, r) => acc + r.realProfit, 0);
   const totalRevenueWithCost = withCost.reduce((acc, r) => acc + r.revenue, 0);
@@ -96,6 +107,7 @@ export function analyzeProductProfitability({ ads, costs, feesByItem, ordersByIt
     missingCost,
     toScale,
     losingMoney,
+    burningAds,
     totalRealProfit,
     totalRevenueWithCost,
   };

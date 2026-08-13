@@ -22,6 +22,7 @@ function required(name) {
 export const rootPath = rootDir;
 export const credentialsPath = path.join(rootDir, ".credentials.json");
 export const marginsPath = path.join(rootDir, "config", "margins.json");
+export const gastosFijosPath = path.join(rootDir, "config", "gastos-fijos.json");
 export const reportsDir = path.join(rootDir, "reports");
 
 export function loadConfig() {

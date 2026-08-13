@@ -107,6 +107,96 @@ function renderStockGapsSection(stockAnalysis, currency) {
   return lines.join("\n");
 }
 
+function renderCascadeSection(cascade, currency) {
+  const lines = [];
+  lines.push("## Cascada de rentabilidad real");
+  lines.push("");
+
+  if (!cascade) {
+    lines.push(
+      "> No puedo armar la cascada todavía: falta `config/costos.csv` completado (ver sección **Ganancia real por producto**)."
+    );
+    return lines.join("\n");
+  }
+
+  lines.push(
+    "_Solo sobre los productos con costo cargado en `config/costos.csv`. Cada línea muestra cuánto se lleva del ingreso bruto — así ves en qué escalón se te va la plata, no solo el resultado final._"
+  );
+  lines.push("");
+  lines.push("| Escalón | Monto |");
+  lines.push("|---|---|");
+  lines.push(`| Ingresos brutos por ventas | **${fmtMoney(cascade.ingresosBrutos, currency)}** |`);
+  lines.push(`| (-) Cargo por venta (comisión ML) | ${fmtMoney(-cascade.cargoPorVenta, currency)} |`);
+  lines.push(`| (-) Costo fijo por venta | _no disponible — ML no lo discrimina en esta integración, ya está bundleado en la comisión de venta_ |`);
+  lines.push(`| (-) Costo por ofrecer cuotas | _no disponible — ídem_ |`);
+  lines.push(`| (-) Costo de envío no cubierto | ${fmtMoney(-cascade.envioNoCubierto, currency)} |`);
+  lines.push(
+    `| (-) IIBB retenido | ${cascade.iibbEsReal ? fmtMoney(-cascade.iibbRetenido, currency) : "_no disponible — falta el permiso Facturación o no hay período cerrado_"} |`
+  );
+  lines.push(`| (-) Anulaciones / reembolsos | _no disponible — todavía no se traen de la API de Órdenes_ |`);
+  lines.push(`| **= Ingreso neto de Mercado Libre** | **${fmtMoney(cascade.ingresoNetoMl, currency)}** |`);
+  lines.push(`| (-) COGS (costo de mercadería vendida) | ${fmtMoney(-cascade.cogsTotal, currency)} |`);
+  lines.push(`| **= Margen de contribución** | **${fmtMoney(cascade.margenContribucion, currency)}** |`);
+  lines.push(`| (-) Inversión en Mercado Ads | ${fmtMoney(-cascade.adSpendTotal, currency)} |`);
+  lines.push(
+    `| (-) Cuota Monotributo | ${cascade.cuotaMonotributo != null ? fmtMoney(-cascade.cuotaMonotributo, currency) : "_no cargada — completá `config/gastos-fijos.json`_"} |`
+  );
+  if (cascade.otrosGastos.length > 0) {
+    for (const g of cascade.otrosGastos) {
+      lines.push(`| (-) ${g.concepto} | ${fmtMoney(-g.monto, currency)} |`);
+    }
+  } else {
+    lines.push(`| (-) Otros gastos fijos/variables declarados | _ninguno cargado en \`config/gastos-fijos.json\`_ |`);
+  }
+  lines.push(`| **= GANANCIA NETA REAL** | **${fmtMoney(cascade.gananciaNetaReal, currency)}** (${fmtPct(cascade.gananciaNetaRealPct)} sobre ventas) |`);
+
+  if (!cascade.isComplete) {
+    lines.push("");
+    lines.push(
+      `⚠️ Esta cascada **todavía no está completa** — le faltan datos reales, así que la Ganancia Neta Real de arriba es optimista (falta restar lo que no se pudo cargar): ${cascade.missingInputs.join("; ")}.`
+    );
+  }
+
+  return lines.join("\n");
+}
+
+function renderAlertsSection({ productAnalysis, billingAnalysis }) {
+  const lines = [];
+  lines.push("## ⚠️ Alertas");
+  lines.push("");
+
+  const alerts = [];
+
+  if (productAnalysis) {
+    if (productAnalysis.losingMoney.length > 0) {
+      const names = productAnalysis.losingMoney.slice(0, 5).map((r) => r.title).join(", ");
+      alerts.push(
+        `**${productAnalysis.losingMoney.length} producto(s) con ganancia real negativa o nula:** ${names}${productAnalysis.losingMoney.length > 5 ? ` y ${productAnalysis.losingMoney.length - 5} más` : ""}.`
+      );
+    }
+    if (productAnalysis.burningAds.length > 0) {
+      const names = productAnalysis.burningAds.slice(0, 5).map((r) => r.title).join(", ");
+      alerts.push(
+        `**${productAnalysis.burningAds.length} producto(s) con campaña quemando plata:** el ACOS de la publicidad supera el margen bruto real del producto (antes de ads) — ${names}${productAnalysis.burningAds.length > 5 ? ` y ${productAnalysis.burningAds.length - 5} más` : ""}. Venden, pero cada venta publicitada pierde plata.`
+      );
+    }
+  }
+
+  if (!billingAnalysis) {
+    alerts.push(
+      "**IIBB sin cargar:** no hay período de facturación cerrado o falta el permiso **Facturación** — la Ganancia Neta Real de este informe no está descontando Ingresos Brutos."
+    );
+  }
+
+  if (alerts.length === 0) {
+    lines.push("Sin alertas: ningún producto con margen negativo ni campaña quemando plata con los datos cargados hasta ahora.");
+  } else {
+    for (const a of alerts) lines.push(`- ${a}`);
+  }
+
+  return lines.join("\n");
+}
+
 function renderProductProfitabilitySection(productAnalysis, currency) {
   const lines = [];
   lines.push("## Ganancia real por producto");
@@ -170,12 +260,17 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
       "_\"Unidades\" y \"Venta total\" son todas las ventas reales del producto en el período (con o sin click de publicidad de por medio); \"Inversión ads\" es lo que gastaste publicitándolo._"
     );
     lines.push("");
-    lines.push("| Producto | Unidades | Venta total | Inversión ads | ACOS ads | ROAS ads | Costo prod. | Comisión ML | Envío extra | **Ganancia real** | Margen real |");
-    lines.push("|---|---|---|---|---|---|---|---|---|---|---|");
+    lines.push("| Producto | Unidades | Venta total | Inversión ads | ACOS ads | ROAS ads | Costo prod. | Comisión ML | Envío extra | **Ganancia real** | Margen real | Margen bruto (sin ads) |");
+    lines.push("|---|---|---|---|---|---|---|---|---|---|---|---|");
     for (const r of withCost) {
+      const warn = r.acosExceedsGrossMargin ? " ⚠️" : "";
       lines.push(
-        `| ${r.title} | ${r.units} | ${fmtMoney(r.revenue, currency)} | ${fmtMoney(r.adSpend, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} ${FEE_SOURCE_LABELS[r.feeSource] ?? ""} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} |`
+        `| ${r.title}${warn} | ${r.units} | ${fmtMoney(r.revenue, currency)} | ${fmtMoney(r.adSpend, currency)} | ${fmtPct(r.acos)} | ${fmtX(r.roas)} | ${fmtMoney(r.cogsPerUnit, currency)} | ${fmtMoney(r.mlFeePerUnit, currency)} ${FEE_SOURCE_LABELS[r.feeSource] ?? ""} | ${fmtMoney(r.extraShippingPerUnit, currency)} | **${fmtMoney(r.realProfit, currency)}** | ${fmtPct(r.realMarginPct)} | ${fmtPct(r.grossMarginPct)} |`
       );
+    }
+    if (withCost.some((r) => r.acosExceedsGrossMargin)) {
+      lines.push("");
+      lines.push("_⚠️ = el ACOS de la publicidad de ese producto supera su margen bruto (antes de ads): la campaña está quemando plata en ese producto aunque genere ventas._");
     }
   }
 
@@ -193,7 +288,7 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
   return lines.join("\n");
 }
 
-export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency }) {
+export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, cascade, currency }) {
   const { summary, campaignAnalyses, hasMarginData } = analysis;
   const lines = [];
 
@@ -201,6 +296,23 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
   lines.push("");
   lines.push(`Período analizado: **${dateFrom} a ${dateTo}**`);
   lines.push(`Generado: ${new Date().toISOString()}`);
+  lines.push("");
+
+  if (cascade) {
+    lines.push(
+      `**Ganancia Neta Real del período: ${fmtMoney(cascade.gananciaNetaReal, currency)}** (${fmtPct(cascade.gananciaNetaRealPct)} de margen neto sobre ${fmtMoney(cascade.ingresosBrutos, currency)} de ventas brutas)${cascade.isComplete ? "" : " — ⚠️ número incompleto, ver cascada abajo"}.`
+    );
+  } else {
+    lines.push(
+      "**Ganancia Neta Real: sin calcular todavía** — falta cargar costos en `config/costos.csv` (ver sección **Qué necesito de vos**)."
+    );
+  }
+  lines.push("");
+
+  lines.push(renderAlertsSection({ productAnalysis, billingAnalysis }));
+
+  lines.push("");
+  lines.push(renderCascadeSection(cascade, currency));
 
   lines.push("");
   lines.push("## Resumen ejecutivo");
@@ -212,7 +324,7 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
   lines.push(`- % de ventas explicadas por publicidad (vs. orgánicas): **${fmtPct(summary.revenueShareFromAds)}**`);
   lines.push(`- Clicks: ${summary.clicks.toLocaleString("es-AR")} · Impresiones: ${summary.prints.toLocaleString("es-AR")} · Unidades vendidas: ${summary.unitsQuantity.toLocaleString("es-AR")}`);
   if (productAnalysis && productAnalysis.withCost.length > 0) {
-    lines.push(`- Ganancia real (después de costo de producto, comisión ML y envío) sobre ${productAnalysis.withCost.length} productos con costo cargado: **${fmtMoney(productAnalysis.totalRealProfit, currency)}**`);
+    lines.push(`- Ganancia real (antes de Monotributo y otros gastos fijos, después de costo de producto, comisión ML, envío y ads) sobre ${productAnalysis.withCost.length} productos con costo cargado: **${fmtMoney(productAnalysis.totalRealProfit, currency)}**`);
   } else {
     lines.push(`- Ganancia real: **sin calcular todavía** (falta cargar costos en \`config/costos.csv\`)`);
   }
@@ -265,13 +377,22 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
     );
   }
 
-  if (!productAnalysis || productAnalysis.missingCost.length > 0) {
+  const needsCosts = !productAnalysis || productAnalysis.missingCost.length > 0;
+  const needsGastosFijos = !cascade || cascade.cuotaMonotributo == null;
+  if (needsCosts || needsGastosFijos) {
     lines.push("");
     lines.push("## Qué necesito de vos");
     lines.push("");
-    lines.push(
-      "Para calcular la **ganancia real** (no solo ACOS/ROAS) necesito el costo de tus productos. Completá la columna `costo_producto` en `config/costos.csv` (y `envio_extra` si vos pagás parte del envío, por ejemplo con Flex o Colecta) y volvé a correr `npm run report`. Si un producto queda igual marcado como \"sin costo\" después de eso, completá también `comision_pct` para ese producto — es el % que Mercado Libre te cobra por venderlo, lo ves en tu panel en \"Costos por vender\"."
-    );
+    if (needsCosts) {
+      lines.push(
+        "- Para calcular la **ganancia real** (no solo ACOS/ROAS) necesito el costo de tus productos. Completá la columna `costo_producto` en `config/costos.csv` (y `envio_extra` si vos pagás parte del envío, por ejemplo con Flex o Colecta) y volvé a correr `npm run report`. Si un producto queda igual marcado como \"sin costo\" después de eso, completá también `comision_pct` para ese producto — es el % que Mercado Libre te cobra por venderlo, lo ves en tu panel en \"Costos por vender\"."
+      );
+    }
+    if (needsGastosFijos) {
+      lines.push(
+        "- Para llegar a la **Ganancia Neta Real** (no solo la ganancia antes de gastos fijos) necesito tu cuota de Monotributo y, si querés, otros gastos fijos (consultora, herramientas). Copiá `config/gastos-fijos.example.json` a `config/gastos-fijos.json`, completalo y volvé a correr `npm run report`."
+      );
+    }
   }
 
   lines.push("");
