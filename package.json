@@ -8,8 +8,8 @@
     "node": ">=18.17"
   },
   "scripts": {
-    "authorize": "NODE_USE_ENV_PROXY=1 node bin/authorize.js",
-    "report": "NODE_USE_ENV_PROXY=1 node bin/generate-report.js"
+    "authorize": "node bin/authorize.js",
+    "report": "node bin/generate-report.js"
   },
   "license": "UNLICENSED"
 }

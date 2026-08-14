@@ -2,6 +2,13 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// Habilita que fetch respete HTTP_PROXY/HTTPS_PROXY del sistema. Se hace acá (en JS,
+// leído por undici al primer fetch) en vez de como prefijo en los scripts de
+// package.json, porque la sintaxis VAR=1 comando no funciona en PowerShell/cmd de
+// Windows — así el mismo "npm run authorize" / "npm run report" funciona en
+// Windows, Mac y Linux sin diferencias.
+process.env.NODE_USE_ENV_PROXY ??= "1";
+
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const envPath = path.join(rootDir, ".env");
 
