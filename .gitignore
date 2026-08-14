@@ -3,6 +3,7 @@ node_modules/
 .credentials.json
 .oauth-pending.json
 reports/*.md
+reports/*.csv
 !reports/.gitkeep
 config/margins.json
 config/costos.csv
