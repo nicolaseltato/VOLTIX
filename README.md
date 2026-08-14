@@ -80,6 +80,25 @@ cp config/margins.example.json config/margins.json
 
 Editá `default_margin_pct` con tu margen bruto promedio (%). Esto es un atajo rápido a nivel campaña — el análisis de `costos.csv` por producto es siempre más preciso.
 
+## 7. (Opcional, recomendado) Gastos declarados para la Ganancia Neta Real completa
+
+El informe calcula una cascada completa de **Ganancia Neta Real** (ingresos brutos → comisiones → IIBB → COGS → Ads → ganancia neta) que no se puede sacar solo de la API de Mercado Libre: falta la cuota de **Monotributo** y otros gastos fijos/variables del negocio (consultora, herramientas pagas, etc.), que solo vos sabés.
+
+```bash
+cp config/gastos.example.json config/gastos.json
+```
+
+Completá:
+
+- `monotributo_mensual`: tu cuota de Monotributo del período (varía si te recategorizás).
+- `iibb_tasa_estimada_pct`: solo se usa cuando no hay un período de facturación cerrado con el dato real de IIBB — referencia, no dato duro.
+- `anulaciones_periodo`: opcional. Mercado Libre no expone el total de anulaciones/reembolsos por API pública; si lo sabés (lo ves en tu panel), cargalo acá.
+- `otros_gastos`: lista de gastos fijos/variables adicionales, con el monto correspondiente al período del informe.
+
+`config/gastos.json` nunca se sube al repositorio (está en `.gitignore`). Si no lo creás, el informe sigue funcionando pero muestra Monotributo y otros gastos en $0, y te lo avisa en una alerta.
+
+Nunca se calcula ni descuenta IVA ni retenciones de Ganancias: la cuenta está exenta por Monotributo.
+
 ## Uso día a día
 
 ```bash
@@ -92,6 +111,7 @@ El informe se guarda en `reports/informe-<fecha>.md` y también se imprime en co
 
 Incluye:
 
+- **🧮 Ganancia Neta Real**: arriba de todo, el número que importa — cuánta plata ganó el negocio de verdad y el % de margen neto, con alertas primero (productos con margen negativo, campañas cuyo ACOS supera el margen real del producto, IIBB estimado, gastos sin declarar) y la cascada completa de ingresos brutos a ganancia neta.
 - **Resumen ejecutivo**: inversión, ventas atribuidas, ACOS/ROAS general, ganancia real total.
 - **Comisiones y percepciones reales**: del último período de facturación cerrado — comisión de venta real, publicidad facturada, envíos, y percepciones de Ingresos Brutos desglosadas por jurisdicción (requiere el permiso "Facturación", ver paso 1).
 - **Productos pausados por falta de stock**: productos con historial de venta por publicidad que Mercado Libre puso en pausa automática por no tener stock, ordenados por venta generada — para priorizar reposición.
@@ -101,11 +121,33 @@ Incluye:
 
 ## Cómo razona el agente
 
+### A nivel negocio (Ganancia Neta Real, la cascada completa)
+
+```
+Ingresos brutos por ventas                (real, API de Órdenes)
+(-) Cargo por venta (comisión ML)         (real; incluye costo fijo y cuotas — ML no las discrimina por API pública a nivel de cada venta)
+(-) Costo de envío no cubierto            (real, API de Órdenes)
+(-) IIBB retenido                         (real si hay un período de facturación cerrado; si no, estimado)
+(-) Anulaciones / reembolsos              (declarado por vos en config/gastos.json; ML no lo expone por API)
+= Ingreso neto de Mercado Libre
+(-) COGS (solo productos con costo cargado en costos.csv)
+= Margen de contribución
+(-) Cuota Monotributo                     (declarado en config/gastos.json)
+(-) Otros gastos declarados               (declarado en config/gastos.json)
+= GANANCIA NETA REAL
+```
+
+Como el COGS solo se conoce para los productos que cargaste en `config/costos.csv` **y** que corrieron publicidad en el período, la ganancia neta real es una porción del negocio, no necesariamente el 100% — el informe siempre muestra el % de cobertura (venta con costo cargado ÷ ingresos brutos totales) para que quede claro qué parte está midiendo.
+
+Nunca se asume IVA ni Ganancias: Voltix está exento por Monotributo.
+
 ### A nivel producto (ganancia real)
 
 `ganancia real = venta por publicidad − (costo del producto × unidades) − (comisión ML × unidades) − (envío extra × unidades) − inversión en publicidad`
 
 Con eso clasifica cada producto en "conviene potenciar" (ganancia real positiva), "está perdiendo plata" (ganancia real negativa o cero) o "sin costo cargado" (no se puede calcular todavía).
+
+El informe también cruza el **ACOS de cada campaña contra el margen real del producto que promociona** (no solo contra el ROAS objetivo que definiste en Mercado Ads): si el ACOS supera ese margen real, la campaña está perdiendo plata aunque "venda mucho", y aparece como alerta arriba de todo.
 
 ### A nivel campaña (táctico: presupuesto y puja)
 
@@ -137,8 +179,10 @@ src/analyze.js           Clasificación táctica por campaña (presupuesto/puja)
 src/analyzeProfitability.js  Ganancia real por producto
 src/analyzeStock.js      Detección de productos pausados por falta de stock
 src/analyzeBilling.js    Comisión real, envíos y percepciones IIBB/IVA por período
+src/analyzeRealProfitability.js  Cascada de Ganancia Neta Real del negocio + cruce ACOS vs. margen real por campaña
 src/report.js            Generador del informe en Markdown
 config/margins.example.json  Plantilla de margen rápido (opcional, a nivel campaña)
+config/gastos.example.json   Plantilla de Monotributo, IIBB estimado y otros gastos (opcional, para la Ganancia Neta Real)
 reports/                 Informes generados (no se versionan)
 ```
 

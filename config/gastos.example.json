@@ -1,0 +1,17 @@
+{
+  "_comment": "Copiá este archivo a config/gastos.json (está en .gitignore, no se sube al repo) y completá tus datos. Se usan para calcular la cascada de Ganancia Neta Real: Monotributo y otros gastos fijos/variables no se pueden sacar de la API de Mercado Libre, así que el agente te los pide acá en vez de inventarlos.",
+
+  "monotributo_mensual": 0,
+
+  "_comment_iibb": "Solo se usa cuando el permiso 'Facturación' no está disponible o el período del informe no coincide con un período de facturación cerrado. Es la alícuota promedio ponderada de IIBB que Mercado Pago te retiene por venta, para dar una referencia cuando no hay dato real. Se muestra siempre marcado como estimado, nunca como dato real.",
+  "iibb_tasa_estimada_pct": 3.5,
+
+  "_comment_anulaciones": "Opcional. Mercado Libre no expone el total de anulaciones/reembolsos del período por la API pública — si lo sabés (lo ves en tu panel de ventas), completalo acá para que se incluya en la cascada. Dejalo en null si no lo sabés: el informe lo va a marcar como 'no disponible' en vez de asumir 0.",
+  "anulaciones_periodo": null,
+
+  "_comment_otros": "Gastos fijos o variables adicionales del negocio (consultora contable, herramientas pagas, etc.). monto_periodo es lo que corresponde gastar en el rango de fechas del informe (si el gasto es mensual y el informe es de 30 días, poné el monto mensual; si el informe es de 7 días, poné la parte proporcional).",
+  "otros_gastos": [
+    { "concepto": "Consultora / contador", "monto_periodo": 0 },
+    { "concepto": "Herramientas pagas", "monto_periodo": 0 }
+  ]
+}

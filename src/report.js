@@ -31,6 +31,115 @@ function fmtX(n) {
   return `${n.toFixed(2)}x`;
 }
 
+function renderRealProfitabilitySection(realProfitability, marginAlerts, productAnalysis, currency) {
+  const lines = [];
+  lines.push("## 🧮 Ganancia Neta Real — el número que importa");
+  lines.push("");
+
+  if (!realProfitability) {
+    lines.push("> No pude calcular esto todavía.");
+    return lines.join("\n");
+  }
+
+  const { negocio, productosConCosto, gastosDeclarados, gananciaNetaReal, margenNetoPct } = realProfitability;
+
+  // --- Titular: 3-4 líneas, el número clave primero, nada de rodeos. ---
+  if (gananciaNetaReal != null) {
+    lines.push(
+      `**Ganancia neta real del período: ${fmtMoney(gananciaNetaReal, currency)}** (${fmtPct(margenNetoPct)} de margen neto sobre las ventas que se pudieron costear).`
+    );
+  } else {
+    lines.push(
+      "**Ganancia neta real: sin calcular todavía** — falta cargar costos en `config/costos.csv` para al menos un producto con publicidad activa."
+    );
+  }
+  if (productosConCosto.coveragePct != null) {
+    lines.push(
+      `_Calculado sobre ${fmtMoney(productosConCosto.revenueWithCost, currency)} de ${fmtMoney(negocio.ingresosBrutos, currency)} en ventas totales del período (**${fmtPct(productosConCosto.coveragePct)} de cobertura**) — el resto son productos sin costo cargado o que nunca corrieron publicidad._`
+    );
+  }
+  if (negocio.ingresosBrutos != null) {
+    lines.push(`Ingresos brutos totales del negocio en el período: **${fmtMoney(negocio.ingresosBrutos, currency)}**. No confundir con la ganancia neta de arriba.`);
+  }
+
+  // --- Alertas primero. ---
+  const alerts = [];
+  if (productAnalysis?.losingMoney?.length > 0) {
+    const top = productAnalysis.losingMoney.slice(0, 3).map((r) => r.title).join(", ");
+    alerts.push(`🔴 **${productAnalysis.losingMoney.length} producto(s) con ganancia real negativa o al límite:** ${top}${productAnalysis.losingMoney.length > 3 ? " y otros" : ""} — ver detalle en "Ganancia real por producto".`);
+  }
+  for (const a of marginAlerts ?? []) {
+    alerts.push(
+      `🔴 **Campaña "${a.campaignName}" pierde plata pese a vender:** ACOS ${fmtPct(a.acos)} supera el margen real del producto que promociona (${fmtPct(a.realMarginPct)}). Bajar puja/objetivo o pausar.`
+    );
+  }
+  if (negocio.iibb.source === "estimado") {
+    alerts.push(`🟡 **IIBB estimado, no real:** ${negocio.iibb.note}`);
+  }
+  if (negocio.anulaciones.amount == null) {
+    alerts.push(`🟡 **Anulaciones/reembolsos no incluidas:** ${negocio.anulaciones.note}`);
+  }
+  if (!gastosDeclarados.configured) {
+    alerts.push(
+      "🟡 **Monotributo y otros gastos en $0:** no encontré `config/gastos.json`. Copiá `config/gastos.example.json`, completá tu cuota de Monotributo y otros gastos fijos, y volvé a correr el informe — si no, la ganancia neta real está sobreestimada."
+    );
+  }
+  if (alerts.length > 0) {
+    lines.push("");
+    lines.push("### Alertas");
+    lines.push("");
+    for (const a of alerts) lines.push(`- ${a}`);
+  }
+
+  // --- Cascada completa. ---
+  lines.push("");
+  lines.push("### Cascada completa");
+  lines.push("");
+  lines.push("**1. Todo el negocio** (ventas reales del período, sean o no publicitadas):");
+  lines.push("");
+  if (negocio.hasOrders) {
+    lines.push(`| Concepto | Monto | |`);
+    lines.push(`|---|---|---|`);
+    lines.push(`| Ingresos brutos por ventas | ${fmtMoney(negocio.ingresosBrutos, currency)} | 🟢 real |`);
+    lines.push(`| (–) Cargo por venta (comisión ML — incluye costo fijo y cuotas, ML no las discrimina en la API pública) | ${fmtMoney(negocio.cargoPorVenta, currency)} | 🟢 real |`);
+    lines.push(`| (–) Costo de envío no cubierto | ${fmtMoney(negocio.envioNoCubierto, currency)} | 🟢 real |`);
+    lines.push(`| (–) IIBB retenido | ${fmtMoney(negocio.iibb.amount, currency)} | ${negocio.iibb.source === "real" ? "🟢 real" : "🟡 estimado"} |`);
+    lines.push(`| (–) Anulaciones / reembolsos | ${negocio.anulaciones.amount != null ? fmtMoney(negocio.anulaciones.amount, currency) : "no disponible"} | ${negocio.anulaciones.amount != null ? "🟡 declarado" : "⚪ no disponible"} |`);
+    lines.push(`| **= Ingreso neto de Mercado Libre** | **${fmtMoney(negocio.ingresoNetoMl, currency)}** | |`);
+  } else {
+    lines.push(
+      "> No pude traer este bloque: falta el permiso **Ventas y envíos** habilitado y re-autorizado en tu app de Mercado Libre."
+    );
+  }
+
+  lines.push("");
+  lines.push(`**2. Productos con costo cargado** (${fmtPct(productosConCosto.coveragePct)} de las ventas totales):`);
+  lines.push("");
+  if (productosConCosto.contributionMargin != null) {
+    lines.push(`| Concepto | Monto |`);
+    lines.push(`|---|---|`);
+    lines.push(`| Venta total de esos productos | ${fmtMoney(productosConCosto.revenueWithCost, currency)} |`);
+    lines.push(`| (–) COGS (costo de mercadería) | ${fmtMoney(productosConCosto.cogsTotal, currency)} |`);
+    lines.push(`| (–) Comisión ML de esos productos | ${fmtMoney(productosConCosto.feeTotal, currency)} |`);
+    lines.push(`| (–) Envío extra a tu cargo | ${fmtMoney(productosConCosto.extraShippingTotal, currency)} |`);
+    lines.push(`| (–) Inversión en Ads de esos productos | ${fmtMoney(productosConCosto.adSpendCosted, currency)} |`);
+    lines.push(`| **= Margen de contribución** | **${fmtMoney(productosConCosto.contributionMargin, currency)}** |`);
+    lines.push("");
+    lines.push(`**3. Ganancia neta real del negocio** (sobre lo que se pudo costear):`);
+    lines.push("");
+    lines.push(`| Concepto | Monto |`);
+    lines.push(`|---|---|`);
+    lines.push(`| Margen de contribución | ${fmtMoney(productosConCosto.contributionMargin, currency)} |`);
+    lines.push(`| (–) Cuota Monotributo | ${fmtMoney(gastosDeclarados.monotributo, currency)} |`);
+    lines.push(`| (–) Otros gastos declarados | ${fmtMoney(gastosDeclarados.otrosGastosTotal, currency)} |`);
+    lines.push(`| **= GANANCIA NETA REAL** | **${fmtMoney(gananciaNetaReal, currency)}** |`);
+  } else {
+    lines.push("> Sin datos: cargá costos en `config/costos.csv` para al menos un producto con publicidad activa.");
+  }
+
+  return lines.join("\n");
+}
+
 function renderBillingSection(billingAnalysis, currency) {
   const lines = [];
   lines.push("## 💰 Comisiones y percepciones reales (Facturación)");
@@ -193,7 +302,7 @@ function renderProductProfitabilitySection(productAnalysis, currency) {
   return lines.join("\n");
 }
 
-export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency }) {
+export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, realProfitability, marginAlerts, currency }) {
   const { summary, campaignAnalyses, hasMarginData } = analysis;
   const lines = [];
 
@@ -201,6 +310,9 @@ export function renderReport({ advertiser, dateFrom, dateTo, analysis, productAn
   lines.push("");
   lines.push(`Período analizado: **${dateFrom} a ${dateTo}**`);
   lines.push(`Generado: ${new Date().toISOString()}`);
+
+  lines.push("");
+  lines.push(renderRealProfitabilitySection(realProfitability, marginAlerts, productAnalysis, currency));
 
   lines.push("");
   lines.push("## Resumen ejecutivo");

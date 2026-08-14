@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { loadConfig, marginsPath, reportsDir } from "../src/config.js";
+import { loadConfig, marginsPath, gastosPath, reportsDir } from "../src/config.js";
 import { MercadoAdsClient } from "../src/mercadoAdsClient.js";
 import { MlFeesClient } from "../src/mlFees.js";
 import { MlBillingClient } from "../src/mlBilling.js";
@@ -13,6 +13,7 @@ import { analyzeCampaigns } from "../src/analyze.js";
 import { analyzeProductProfitability } from "../src/analyzeProfitability.js";
 import { analyzeStockGaps } from "../src/analyzeStock.js";
 import { analyzeBilling } from "../src/analyzeBilling.js";
+import { analyzeRealProfitability, crossCheckCampaignAcosVsMargin } from "../src/analyzeRealProfitability.js";
 import { aggregateAdsByItem } from "../src/aggregateAds.js";
 import { aggregateOrdersByItem } from "../src/analyzeOrders.js";
 import { renderReport } from "../src/report.js";
@@ -43,6 +44,11 @@ function resolveDateRange({ days, from, to }) {
 function loadMarginsConfig() {
   if (!existsSync(marginsPath)) return null;
   return JSON.parse(readFileSync(marginsPath, "utf8"));
+}
+
+function loadGastosConfig() {
+  if (!existsSync(gastosPath)) return null;
+  return JSON.parse(readFileSync(gastosPath, "utf8"));
 }
 
 // Trae, para cada producto con costo cargado, la comisión real de Mercado Libre.
@@ -199,8 +205,36 @@ async function main() {
     );
   }
 
+  const gastos = loadGastosConfig();
+  if (!gastos) {
+    console.log(
+      `Aviso: no encontré config/gastos.json. La cascada de Ganancia Neta Real va a mostrar Monotributo y otros gastos en $0. Copiá config/gastos.example.json a config/gastos.json y completalo para un número real.`
+    );
+  }
+  const realProfitability = analyzeRealProfitability({
+    ordersByItem,
+    productAnalysis,
+    adsSpendTotal: analysis.summary.cost,
+    billingAnalysis,
+    gastos,
+    dateFrom,
+    dateTo,
+  });
+  const marginAlerts = crossCheckCampaignAcosVsMargin({ campaignAnalyses: analysis.campaignAnalyses, productAnalysis });
+
   const currency = details[0]?.currency_id === "ARS" || config.siteId === "MLA" ? "$" : "";
-  const report = renderReport({ advertiser, dateFrom, dateTo, analysis, productAnalysis, stockAnalysis, billingAnalysis, currency });
+  const report = renderReport({
+    advertiser,
+    dateFrom,
+    dateTo,
+    analysis,
+    productAnalysis,
+    stockAnalysis,
+    billingAnalysis,
+    realProfitability,
+    marginAlerts,
+    currency,
+  });
 
   const fileName = `informe-${dateTo}.md`;
   const filePath = path.join(reportsDir, fileName);
