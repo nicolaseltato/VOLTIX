@@ -1,12 +1,25 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const envPath = path.join(rootDir, ".env");
 
+// process.loadEnvFile() NO pisa variables que ya existan en el entorno. Algunos
+// entornos (este incluido) precargan variables placeholder (ej. "tu_app_id") a
+// partir de .env.example, que de otra forma tapan los valores reales del .env
+// del proyecto. El .env del proyecto es la fuente de verdad: siempre gana.
 if (existsSync(envPath)) {
-  process.loadEnvFile(envPath);
+  const contents = readFileSync(envPath, "utf8");
+  for (const line of contents.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    process.env[key] = value;
+  }
 }
 
 function required(name) {
