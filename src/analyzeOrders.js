@@ -27,8 +27,13 @@ export function aggregateOrdersByItem(orders) {
         });
       }
       const entry = byItem.get(itemId);
+      // sale_fee viene POR UNIDAD, no total de la línea — confirmado con dos
+      // órdenes reales del mismo ítem y precio, una con quantity=1 y otra con
+      // quantity=2, ambas con el mismo valor de sale_fee. Hay que multiplicar
+      // por la cantidad o se subestima la comisión real en cualquier venta con
+      // más de una unidad por orden.
       entry.units += oi.quantity ?? 0;
-      entry.saleFeeTotal += oi.sale_fee ?? 0;
+      entry.saleFeeTotal += (oi.sale_fee ?? 0) * (oi.quantity ?? 1);
       entry.revenueTotal += lineRevenue;
       entry.shippingTotal += shippingShare;
       entry.orderCount += 1;
