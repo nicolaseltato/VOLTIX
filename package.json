@@ -10,7 +10,8 @@
   "scripts": {
     "authorize": "NODE_USE_ENV_PROXY=1 node bin/authorize.js",
     "report": "NODE_USE_ENV_PROXY=1 node bin/generate-report.js",
-    "sales-detail": "NODE_USE_ENV_PROXY=1 node bin/generate-sales-detail.js"
+    "sales-detail": "NODE_USE_ENV_PROXY=1 node bin/generate-sales-detail.js",
+    "gross-sales-yesterday": "NODE_USE_ENV_PROXY=1 node bin/gross-sales-yesterday.js"
   },
   "license": "UNLICENSED"
 }
