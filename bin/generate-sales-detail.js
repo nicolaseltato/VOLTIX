@@ -101,14 +101,16 @@ async function main() {
 
   const header = [
     "fecha", "orden_id", "item_id", "producto", "cantidad", "precio_unitario", "venta_total",
-    "comision_ml", "tiene_envio", "costo_envio", "logistic_type", "iibb_retenido", "iibb_jurisdiccion",
-    "costo_producto_unit", "ganancia_neta",
+    "comision_ml", "tiene_envio", "envio_disponible", "costo_envio", "descuento_envio_pct", "logistic_type",
+    "iibb_retenido", "iibb_jurisdiccion", "costo_producto_unit", "ganancia_neta",
   ].join(",");
 
   const rows = ledger.map((r) =>
     [
       r.date, r.orderId, r.itemId, escapeCsvCell(r.title), r.quantity, fmt(r.unitPrice), fmt(r.revenue),
-      fmt(r.commission), r.hasShipping == null ? "" : (r.hasShipping ? "si" : "no"), fmt(r.shippingCost),
+      fmt(r.commission), r.hasShipping == null ? "" : (r.hasShipping ? "si" : "no"),
+      r.shippingCostAvailable ? "si" : (r.logisticType === "fulfillment" ? "no (Full, no desglosable)" : "no"),
+      fmt(r.shippingCost), r.shippingDiscountRate != null ? `${Math.round(r.shippingDiscountRate * 100)}%` : "",
       r.logisticType ?? "", fmt(r.iibbAmount), escapeCsvCell(r.iibbJurisdictions),
       fmt(r.cogsPerUnit), fmt(r.netProfit),
     ].join(",")
@@ -121,7 +123,9 @@ async function main() {
 
   const totalRevenue = ledger.reduce((a, r) => a + r.revenue, 0);
   const totalCommission = ledger.reduce((a, r) => a + r.commission, 0);
-  const totalShipping = ledger.reduce((a, r) => a + r.shippingCost, 0);
+  const withShippingData = ledger.filter((r) => r.shippingCostAvailable);
+  const totalShipping = withShippingData.reduce((a, r) => a + r.shippingCost, 0);
+  const fullCount = ledger.filter((r) => r.logisticType === "fulfillment").length;
   const totalIibb = ledger.reduce((a, r) => a + r.iibbAmount, 0);
   const withProfit = ledger.filter((r) => r.netProfit != null);
   const totalNetProfit = withProfit.reduce((a, r) => a + r.netProfit, 0);
@@ -129,9 +133,12 @@ async function main() {
   console.log(`\nPlanilla generada en ${filePath} (${ledger.length} filas)\n`);
   console.log(`Venta total: $${Math.round(totalRevenue).toLocaleString("es-AR")}`);
   console.log(`Comisión ML total: $${Math.round(totalCommission).toLocaleString("es-AR")}`);
-  console.log(`Envío total: $${Math.round(totalShipping).toLocaleString("es-AR")}`);
+  console.log(`Envío real (${withShippingData.length}/${ledger.length} filas, excluye Full): $${Math.round(totalShipping).toLocaleString("es-AR")}`);
+  if (fullCount > 0) {
+    console.log(`Aviso: ${fullCount} filas son de logística Full — Mercado Libre no factura ese envío por venta individual (va en un cargo mensual agregado), así que no tienen envío real ni ganancia neta calculada acá.`);
+  }
   console.log(`IIBB retenido total: $${Math.round(totalIibb).toLocaleString("es-AR")}`);
-  console.log(`Ganancia neta (${withProfit.length}/${ledger.length} filas con costo cargado): $${Math.round(totalNetProfit).toLocaleString("es-AR")}`);
+  console.log(`Ganancia neta (${withProfit.length}/${ledger.length} filas con costo Y envío disponibles): $${Math.round(totalNetProfit).toLocaleString("es-AR")}`);
 }
 
 main().catch((err) => {

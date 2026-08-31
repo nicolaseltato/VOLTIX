@@ -1,7 +1,8 @@
 // Arma una fila por cada línea de producto dentro de cada orden paga, con
 // todos los costos reales de esa venta puntual: comisión de Mercado Libre,
-// envío (si aplica, y cuánto), percepción de Ingresos Brutos (si el comprador
-// era de una jurisdicción que la aplica), y ganancia neta si hay costo cargado.
+// envío (si aplica, y cuánto — o "no disponible" si es Full, ver mlShipments.js),
+// percepción de Ingresos Brutos (si el comprador era de una jurisdicción que la
+// aplica), y ganancia neta si hay costo cargado Y el envío está disponible.
 export function buildSalesLedger({ orders, shipmentsByOrderId, perceptionsBySaleNumber, costs }) {
   const rows = [];
 
@@ -9,7 +10,8 @@ export function buildSalesLedger({ orders, shipmentsByOrderId, perceptionsBySale
     const items = order.order_items ?? [];
     const orderRevenue = items.reduce((acc, oi) => acc + (oi.unit_price ?? 0) * (oi.quantity ?? 0), 0);
     const shipment = shipmentsByOrderId.get(String(order.id));
-    const shippingCost = shipment?.cost ?? 0;
+    const shippingCostAvailable = shipment?.costAvailable ?? false;
+    const shippingCost = shippingCostAvailable ? (shipment.cost ?? 0) : 0;
     const iibbForOrder = perceptionsBySaleNumber.get(String(order.id)) ?? [];
     const iibbTotal = iibbForOrder.reduce((acc, p) => acc + (p.tax_amount ?? 0), 0);
     const iibbJurisdictions = [...new Set(iibbForOrder.map((p) => p.tax_type_description ?? p.tax_type))];
@@ -21,13 +23,15 @@ export function buildSalesLedger({ orders, shipmentsByOrderId, perceptionsBySale
       const revenueShare = orderRevenue > 0 ? lineRevenue / orderRevenue : 1 / items.length;
 
       const commission = (oi.sale_fee ?? 0) * quantity;
-      const shippingForLine = shippingCost * revenueShare;
+      const shippingForLine = shippingCostAvailable ? shippingCost * revenueShare : null;
       const iibbForLine = iibbTotal * revenueShare;
 
       const cost = costs?.get(itemId);
       const cogsTotal = cost?.cogs != null ? cost.cogs * quantity : null;
       const netProfit =
-        cogsTotal != null ? lineRevenue - cogsTotal - commission - shippingForLine - iibbForLine : null;
+        cogsTotal != null && shippingCostAvailable
+          ? lineRevenue - cogsTotal - commission - shippingForLine - iibbForLine
+          : null;
 
       rows.push({
         orderId: order.id,
@@ -39,8 +43,11 @@ export function buildSalesLedger({ orders, shipmentsByOrderId, perceptionsBySale
         revenue: lineRevenue,
         commission,
         hasShipping: shipment?.hasShipping ?? null,
+        shippingCostAvailable,
         shippingCost: shippingForLine,
         logisticType: shipment?.logisticType ?? null,
+        shippingDiscountRate: shipment?.discountRate ?? null,
+        shippingDiscountType: shipment?.discountType ?? null,
         iibbAmount: iibbForLine,
         iibbJurisdictions: iibbJurisdictions.join(" / "),
         cogsPerUnit: cost?.cogs ?? null,
